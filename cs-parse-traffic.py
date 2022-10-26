@@ -104,20 +104,18 @@ class cOutput():
                 switches = self.filenameOption[1:position]
                 self.filename = self.filenameOption[position + 1:]
                 for switch in switches:
-                    if switch == 's':
-                        self.separateFiles = True
+                    if switch == 'l':
+                        continue
+                    if switch == 'c':
+                        self.console = True
+                    elif switch == 'g':
+                        extra = f'{self.filename}-' if self.filename != '' else ''
+                        self.filename = f'{os.path.splitext(os.path.basename(sys.argv[0]))[0]}-{extra}{self.FormatTime()}.txt'
+
                     elif switch == 'p':
                         self.progress = True
-                    elif switch == 'c':
-                        self.console = True
-                    elif switch == 'l':
-                        pass
-                    elif switch == 'g':
-                        if self.filename != '':
-                            extra = self.filename + '-'
-                        else:
-                            extra = ''
-                        self.filename = '%s-%s%s.txt' % (os.path.splitext(os.path.basename(sys.argv[0]))[0], extra, self.FormatTime())
+                    elif switch == 's':
+                        self.separateFiles = True
                     else:
                         return False
                 return True
@@ -125,25 +123,25 @@ class cOutput():
 
     @staticmethod
     def FormatTime(epoch=None):
-        if epoch == None:
+        if epoch is None:
             epoch = time.time()
-        return '%04d%02d%02d-%02d%02d%02d' % time.localtime(epoch)[0:6]
+        return '%04d%02d%02d-%02d%02d%02d' % time.localtime(epoch)[:6]
 
     def RootUnique(self, root):
-        if not root in self.rootFilenames:
+        if root not in self.rootFilenames:
             self.rootFilenames[root] = None
             return root
         iter = 1
         while True:
             newroot = '%s_%04d' % (root, iter)
-            if not newroot in self.rootFilenames:
+            if newroot not in self.rootFilenames:
                 self.rootFilenames[newroot] = None
                 return newroot
             iter += 1
 
     def Line(self, line, eol='\n'):
         line = self.Replace(line)
-        if self.fOut == None or self.console:
+        if self.fOut is None or self.console:
             try:
                 print(line, end=eol)
             except UnicodeEncodeError:
@@ -155,7 +153,7 @@ class cOutput():
             self.fOut.flush()
 
     def LineTimestamped(self, line):
-        self.Line('%s: %s' % (self.FormatTime(), line))
+        self.Line(f'{self.FormatTime()}: {line}')
 
     def Filename(self, filename, index, total):
         self.separateFilename = filename
@@ -186,9 +184,7 @@ class cOutput():
             self.fOut = None
 
 def InstantiateCOutput(options):
-    filenameOption = None
-    if options.output != '':
-        filenameOption = options.output
+    filenameOption = options.output if options.output != '' else None
     return cOutput(filenameOption)
 
 class cCrypto(object):
@@ -197,11 +193,11 @@ class cCrypto(object):
     def __init__(self, rawkey='', hmacaeskeys=''):
         self.rawkey = rawkey
         self.hmacaeskeys = hmacaeskeys
-        if self.rawkey != '' and self.rawkey != 'unknown':
+        if self.rawkey not in ['', 'unknown']:
             sha256digest = hashlib.sha256(binascii.a2b_hex(self.rawkey)).digest()
             self.hmackey = sha256digest[16:]
             self.aeskey = sha256digest[:16]
-        elif self.hmacaeskeys != '' and self.hmacaeskeys != 'unknown':
+        elif self.hmacaeskeys not in ['', 'unknown']:
             self.hmackey = binascii.a2b_hex(self.hmacaeskeys.split(':')[0])
             self.aeskey = binascii.a2b_hex(self.hmacaeskeys.split(':')[1])
         else:
@@ -209,7 +205,7 @@ class cCrypto(object):
             self.aeskey = None
 
     def Decrypt(self, data):
-        if self.aeskey == None:
+        if self.aeskey is None:
             return data
         encryptedData = data[:-16]
         hmacSignatureMessage = data[-16:]
@@ -217,8 +213,7 @@ class cCrypto(object):
         if hmacSignatureMessage != hmacsSgnatureCalculated:
             raise Exception('HMAC signature invalid')
         cypher = Crypto.Cipher.AES.new(self.aeskey, Crypto.Cipher.AES.MODE_CBC, __class__.CS_FIXED_IV)
-        decryptedData = cypher.decrypt(encryptedData)
-        return decryptedData
+        return cypher.decrypt(encryptedData)
 
     def Encrypt(self, data):
         cypher = Crypto.Cipher.AES.new(self.aeskey, Crypto.Cipher.AES.MODE_CBC, __class__.CS_FIXED_IV)
@@ -238,16 +233,13 @@ class cStruct(object):
         tounpack = self.data[:formatsize]
         self.data = self.data[formatsize:]
         result = struct.unpack(format, tounpack)
-        if len(result) == 1:
-            return result[0]
-        else:
-            return result
+        return result[0] if len(result) == 1 else result
 
     def Truncate(self, length):
         self.data = self.data[:length]
 
     def GetBytes(self, length=None):
-        if length == None:
+        if length is None:
             length = len(self.data)
         result = self.data[:length]
         self.data = self.data[length:]
@@ -322,11 +314,14 @@ class cCSInstructions(object):
             ord(b'O'): ord(b'E'),
             ord(b'P'): ord(b'F'),
         }
-        return binascii.a2b_hex(bytes([dTranslate[char] for char in netbios]))
+        return binascii.a2b_hex(bytes(dTranslate[char] for char in netbios))
 
     def GetInstructions(self):
         for result in self.instructions.split(';'):
-            match, remainder = __class__.StartsWithGetRemainder(result, '7:%s,' % self.instructionType)
+            match, remainder = __class__.StartsWithGetRemainder(
+                result, f'7:{self.instructionType},'
+            )
+
             if match:
                 if self.instructionType in [__class__.CS_INSTRUCTION_TYPE_OUTPUT, __class__.CS_INSTRUCTION_TYPE_METADATA]:
                     return ','.join(remainder.split(',')[::-1])
@@ -336,10 +331,7 @@ class cCSInstructions(object):
 
     def ProcessInstructions(self, rawdata):
         instructions = self.GetInstructions()
-        if instructions == '':
-            instructions = []
-        else:
-            instructions = [instruction for instruction in instructions.split(',')]
+        instructions = [] if instructions == '' else list(instructions.split(','))
         data = rawdata
         for instruction in instructions:
             instruction = instruction.split(':')
@@ -382,15 +374,11 @@ class cCSInstructions(object):
             elif opcode == __class__.CS_INSTRUCTION_STRREP:
                 data = data.replace(operands[0], operands[1])
             elif opcode == __class__.CS_INSTRUCTION_MASK:
-                xorkey = data[0:4]
+                xorkey = data[:4]
                 ciphertext = data[4:]
-                data = []
-                for iter, value in enumerate(ciphertext):
-                    data.append(value ^ xorkey[iter % 4])
+                data = [value ^ xorkey[iter % 4] for iter, value in enumerate(ciphertext)]
                 data = bytes(data)
-            elif opcode == __class__.CS_INSTRUCTION_CONST_HOST_HEADER:
-                pass
-            else:
+            elif opcode != __class__.CS_INSTRUCTION_CONST_HOST_HEADER:
                 raise Exception('Unknown instruction opcode: %d' % opcode)
         return data
 
@@ -619,9 +607,9 @@ class cCSParser(object):
 
     @staticmethod
     def FormatTime(epoch=None):
-        if epoch == None:
+        if epoch is None:
             epoch = time.time()
-        return '%04d%02d%02d-%02d%02d%02d' % time.gmtime(epoch)[0:6]
+        return '%04d%02d%02d-%02d%02d%02d' % time.gmtime(epoch)[:6]
 
     def LookupCommand(self, commandID):
         return self.BEACON_COMMANDS.get(commandID, 'UNKNOWN')
@@ -631,7 +619,7 @@ class cCSParser(object):
 
     def ExtractPayload(self, data):
         if self.extract:
-            with open('payload-%s.vir' % hashlib.md5(data).hexdigest(), 'wb') as fWrite:
+            with open(f'payload-{hashlib.md5(data).hexdigest()}.vir', 'wb') as fWrite:
                 fWrite.write(data)
 
     def ProcessPostPacketDataSub(self, data):
@@ -665,27 +653,24 @@ class cCSParser(object):
             filenameDownload = oStructCallbackdataToParse.GetBytes()
             self.oOutput.Line(' parameter1: %d' % parameter1)
             self.oOutput.Line(' length: %d' % length)
-            self.oOutput.Line(' filenameDownload: %s' % filenameDownload.decode())
+            self.oOutput.Line(f' filenameDownload: {filenameDownload.decode()}')
         elif callback in [17, 30, 32]:
             self.oOutput.Line(callbackdata.decode())
         elif callback in [3, 8]:
             self.oOutput.Line(' Length: %d' % len(callbackdata[4:]))
-            self.oOutput.Line(' MD5: ' + hashlib.md5(callbackdata[4:]).hexdigest())
+            self.oOutput.Line(f' MD5: {hashlib.md5(callbackdata[4:]).hexdigest()}')
             self.ExtractPayload(callbackdata[4:])
         else:
             self.oOutput.Line(repr(callbackdata))
         extradata = oStructData.GetBytes()[:-16] # drop hmac
         if len(extradata) > 0:
-            self.oOutput.Line('Extra packet data: %s' % repr(extradata))
+            self.oOutput.Line(f'Extra packet data: {repr(extradata)}')
 
         self.oOutput.Line('')
 
     def ProcessPostPacketData(self, hexdata):
-        if self.hexadecimal:
-            rawdata = binascii.a2b_hex(hexdata)
-        else:
-            rawdata = hexdata
-        self.oOutput.Line('Length raw data: %s' % len(rawdata))
+        rawdata = binascii.a2b_hex(hexdata) if self.hexadecimal else hexdata
+        self.oOutput.Line(f'Length raw data: {len(rawdata)}')
         rawdata = cCSInstructions(cCSInstructions.CS_INSTRUCTION_TYPE_OUTPUT, self.transform).ProcessInstructions(rawdata)
         if rawdata == b'':
             self.oOutput.Line('No data')
@@ -703,11 +688,8 @@ class cCSParser(object):
             self.ProcessPostPacketDataSub(rawdata)
 
     def ProcessReplyPacketData(self, hexdata):
-        if self.hexadecimal:
-            rawdata = binascii.a2b_hex(hexdata)
-        else:
-            rawdata = hexdata
-        self.oOutput.Line('Length raw data: %s' % len(rawdata))
+        rawdata = binascii.a2b_hex(hexdata) if self.hexadecimal else hexdata
+        self.oOutput.Line(f'Length raw data: {len(rawdata)}')
         rawdata = cCSInstructions(cCSInstructions.CS_INSTRUCTION_TYPE_INPUT, self.transform).ProcessInstructions(rawdata)
         if rawdata == b'':
             self.oOutput.Line('No data')
@@ -729,7 +711,7 @@ class cCSParser(object):
             self.oOutput.Line('No data')
         elif data.startswith(b'MZ'):
             self.oOutput.Line('MZ payload detected')
-            self.oOutput.Line(' MD5: ' + hashlib.md5(data).hexdigest())
+            self.oOutput.Line(f' MD5: {hashlib.md5(data).hexdigest()}')
             self.ExtractPayload(data)
         else:
             oStructData = cStruct(data)
@@ -749,8 +731,8 @@ class cCSParser(object):
                     self.oOutput.Line(' Length random data = %d' % argslen)
                     payload = oStructData.GetBytes(argslen)
                 elif command == __class__.BEACON_COMMAND_RUN:
-                    self.oOutput.Line(' Command: %s' % oStructData.GetString('>I'))
-                    self.oOutput.Line(' Arguments: %s' % oStructData.GetString('>I'))
+                    self.oOutput.Line(f" Command: {oStructData.GetString('>I')}")
+                    self.oOutput.Line(f" Arguments: {oStructData.GetString('>I')}")
                     self.oOutput.Line(' Integer: %d' % oStructData.Unpack('>H'))
                 else:
                     self.oOutput.Line(' Arguments length: %d' % argslen)
@@ -759,13 +741,13 @@ class cCSParser(object):
                             oStructCommand = cStruct(oStructData.GetBytes(argslen))
                             self.oOutput.Line(' Unknown1: %d' % oStructCommand.Unpack('>I'))
                             self.oOutput.Line(' Unknown2: %d' % oStructCommand.Unpack('>I'))
-                            self.oOutput.Line(' Pipename: %s' % oStructCommand.GetString('>I'))
-                            self.oOutput.Line(' Command: %s' % oStructCommand.GetString('>I'))
-                            self.oOutput.Line(' ' + repr(oStructCommand.GetBytes()))
+                            self.oOutput.Line(f" Pipename: {oStructCommand.GetString('>I')}")
+                            self.oOutput.Line(f" Command: {oStructCommand.GetString('>I')}")
+                            self.oOutput.Line(f' {repr(oStructCommand.GetBytes())}')
                         else:
                             payload = oStructData.GetBytes(argslen)
-                            self.oOutput.Line(' ' + repr(payload[:argslen])[:100])
-                            self.oOutput.Line(' MD5: ' + hashlib.md5(payload).hexdigest())
+                            self.oOutput.Line(f' {repr(payload[:argslen])[:100]}')
+                            self.oOutput.Line(f' MD5: {hashlib.md5(payload).hexdigest()}')
                             self.ExtractPayload(payload)
 
         self.oOutput.Line('')
@@ -806,7 +788,7 @@ def AnalyzeCaptureHTTP(filename, options):
 
         if hasattr(packet.http, 'request'):
             oOutput.Line('Packet number: %d' % packet.number)
-            oOutput.Line('HTTP request %s' % dMethods.get(packet.number, ''))
+            oOutput.Line(f"HTTP request {dMethods.get(packet.number, '')}")
             oOutput.Line(packet.http.full_uri)
             try:
                 oCSParser.ProcessPostPacketData(data_raw[0])
@@ -829,16 +811,10 @@ def AnalyzeCaptureHTTP(filename, options):
             oOutput.Line(' %d %s: %d' % (callback, oCSParser.LookupCallback(callback), counter))
 
 def IsNumber(data):
-    for a in data:
-        if not a in '0123456789':
-            return False
-    return True
+    return all(a in '0123456789' for a in data)
 
 def IsHexNumber(data):
-    for a in data.lower():
-        if not a in '0123456789abcdef':
-            return False
-    return True
+    return all(a in '0123456789abcdef' for a in data.lower())
 
 def StartsWithGetRemainder(strIn, strStart):
     if strIn.startswith(strStart):
@@ -857,10 +833,7 @@ def IPv4ToHex(ipv4):
 
 class cParts(object):
     def __init__(self, dnsidle=''):
-        if dnsidle == '':
-            self.dnsidle = 0
-        else:
-            self.dnsidle = int(IPv4ToHex(dnsidle), 16)
+        self.dnsidle = 0 if dnsidle == '' else int(IPv4ToHex(dnsidle), 16)
         self.Init()
 
     def Init(self):
@@ -873,23 +846,21 @@ class cParts(object):
             self.identifier = counter[1:]
             self.size = int(self.Convert1(value), 16) ^ self.dnsidle
             self.dParts = {}
-        elif self.identifier == None:
+        elif self.identifier is None:
             self.Init()
         elif counter.endswith(self.identifier):
             self.dParts[int(counter, 16)] = value
 
     def Assemble(self):
-        if self.identifier == None:
+        if self.identifier is None:
             return None
         numbers = sorted(self.dParts.keys())
-        data = ''
-        for number in numbers:
-            data += ''.join(self.Convert2(self.dParts[number]))
+        data = ''.join(
+            ''.join(self.Convert2(self.dParts[number])) for number in numbers
+        )
+
         data = self.Convert3(data)
-        if len(data) == self.size * 2:
-            return data
-        else:
-            return None
+        return data if len(data) == self.size * 2 else None
 
 class cPartsIPv4(cParts):
     @staticmethod
@@ -951,10 +922,14 @@ class cPartsLabels(cParts):
         return data
 
 def CheckForBeacon(labels, dBeacons):
-    for position, label in enumerate(labels):
-        if label in dBeacons:
-            return labels[:position]
-    return None
+    return next(
+        (
+            labels[:position]
+            for position, label in enumerate(labels)
+            if label in dBeacons
+        ),
+        None,
+    )
 
 def AnalyzeCaptureDNS(filename, options):
     oOutput = InstantiateCOutput(options)

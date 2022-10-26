@@ -33,7 +33,13 @@ class cCHRDecoder(cDecoderParent):
 
     def Decode(self):
         if sys.version_info[0] > 2:
-            decoded = bytes([int(s[4:-1]) for s in re.compile('chr\(\d+\)', re.IGNORECASE).findall(SearchAndDecompress(self.stream))])
+            decoded = bytes(
+                int(s[4:-1])
+                for s in re.compile('chr\(\d+\)', re.IGNORECASE).findall(
+                    SearchAndDecompress(self.stream)
+                )
+            )
+
         else:
             decoded = ''.join([chr(int(s[4:-1])) for s in re.compile('chr\(\d+\)', re.IGNORECASE).findall(SearchAndDecompress(self.stream))])
         self.name = 'CHR decoder'

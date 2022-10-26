@@ -19,10 +19,7 @@ Todo:
 """
 
 def ParseNumber(number):
-    if number.startswith('0x'):
-        return int(number[2:], 16)
-    else:
-        return int(number)
+    return int(number[2:], 16) if number.startswith('0x') else int(number)
 
 class cROL1Decoder(cDecoderParent):
     name = 'ROL 1 byte decoder'
@@ -40,7 +37,11 @@ class cROL1Decoder(cDecoderParent):
 
     def Decode(self):
         if sys.version_info[0] > 2:
-            decoded = bytes([(((c << self.keyROL1) | (c >> (8 - self.keyROL1))) & 0xFF) for c in self.stream])
+            decoded = bytes(
+                ((c << self.keyROL1) | (c >> (8 - self.keyROL1))) & 0xFF
+                for c in self.stream
+            )
+
         else:
             decoded = ''.join([chr(((ord(c) << self.keyROL1) | (ord(c) >> (8 - self.keyROL1))) & 0xFF) for c in self.stream])
         self.name = 'ROL 1 byte key 0x%02X' % self.keyROL1

@@ -301,9 +301,9 @@ def File2String(filename):
         f.close()
 
 def FormatTimeUTC(epoch=None):
-    if epoch == None:
+    if epoch is None:
         epoch = time.time()
-    return '%04d%02d%02d-%02d%02d%02d' % time.gmtime(epoch)[0:6]
+    return '%04d%02d%02d-%02d%02d%02d' % time.gmtime(epoch)[:6]
 
 def ParseCommand(command):
     dCommand = {}
@@ -311,8 +311,8 @@ def ParseCommand(command):
         name, value = element.split('=', 1)
         name = name.lower().strip()
         dCommand[name] = value
-    if not TYPE in dCommand:
-        raise Exception('Error command, type missing: ' + command)
+    if TYPE not in dCommand:
+        raise Exception(f'Error command, type missing: {command}')
     return dCommand
 
 def DefineLabelFromFilename(filename):
@@ -326,20 +326,20 @@ def DefineLabelFromFilename(filename):
 
 def ValidatePayload(dCommand):
     for name, value in dCommand.items():
-        if name != FILE and name != DATA:
+        if name not in [FILE, DATA]:
             dCommand[name] = value.lower().strip()
-    if not FILE in dCommand and not DATA in dCommand:
+    if FILE not in dCommand and DATA not in dCommand:
         raise Exception('Error payload: file/data missing')
     if FILE in dCommand and DATA in dCommand:
         raise Exception('Error payload: file & data present')
-    if not LABEL in dCommand:
+    if LABEL not in dCommand:
         if FILE in dCommand:
             dCommand[LABEL] = DefineLabelFromFilename(dCommand[FILE])
         else:
             raise Exception('Error payload: label & file missing')
-    if not ENCODING in dCommand:
+    if ENCODING not in dCommand:
         dCommand[ENCODING] = ENCODING_NONE
-    if not DATAENCODING in dCommand:
+    if DATAENCODING not in dCommand:
         dCommand[DATAENCODING] = ENCODING_NONE
     return dCommand
 
@@ -347,9 +347,9 @@ def ValidateExfiltration(dCommand):
     for name, value in dCommand.items():
         if name != ANSWER:
             dCommand[name] = value.lower().strip()
-    if not LABEL in dCommand:
+    if LABEL not in dCommand:
         raise Exception('Error exfiltration: label missing')
-    if not ANSWER in dCommand:
+    if ANSWER not in dCommand:
         dCommand[ANSWER] = ''
     return dCommand
 
@@ -357,19 +357,19 @@ def ValidateTrack(dCommand):
     for name, value in dCommand.items():
         if name != ANSWER:
             dCommand[name] = value.lower().strip()
-    if not LABEL in dCommand:
+    if LABEL not in dCommand:
         raise Exception('Error track: label missing')
-    if not ANSWER in dCommand:
+    if ANSWER not in dCommand:
         dCommand[ANSWER] = ''
     if LOGGING in dCommand:
-        dCommand[LOGGING] = '%s-%s.log' % (dCommand[LOGGING], FormatTimeUTC())
+        dCommand[LOGGING] = f'{dCommand[LOGGING]}-{FormatTimeUTC()}.log'
     return dCommand
 
 def ValidateRcode(dCommand):
     for name, value in dCommand.items():
         if name != ANSWER:
             dCommand[name] = value.lower().strip()
-    if not LABEL in dCommand:
+    if LABEL not in dCommand:
         raise Exception('Error rcode: label missing')
     return dCommand
 
@@ -377,21 +377,21 @@ def ValidateWildcard(dCommand):
     for name, value in dCommand.items():
         if name != ANSWER:
             dCommand[name] = value.lower().strip()
-    if not LABEL in dCommand:
+    if LABEL not in dCommand:
         raise Exception('Error wildcard: label missing')
-    if not ANSWER in dCommand:
+    if ANSWER not in dCommand:
         dCommand[ANSWER] = ''
     if LOGGING in dCommand:
-        dCommand[LOGGING] = '%s-%s.log' % (dCommand[LOGGING], FormatTimeUTC())
+        dCommand[LOGGING] = f'{dCommand[LOGGING]}-{FormatTimeUTC()}.log'
     return dCommand
 
 def ValidateResolve(dCommand):
     for name, value in dCommand.items():
         if name != ANSWER:
             dCommand[name] = value.lower().strip()
-    if not LABEL in dCommand:
+    if LABEL not in dCommand:
         raise Exception('Error resolve: label missing')
-    if not ANSWER in dCommand:
+    if ANSWER not in dCommand:
         dCommand[ANSWER] = ''
     dCommand[ANSWER] = dCommand[ANSWER].split(';')
     dCommand[INDEX] = 0
@@ -498,12 +498,9 @@ class cMyResolver(dnslib.server.BaseResolver):
                 self.resolves[dCommand[LABEL]] = dResolve
                 self.labels[dCommand[LABEL]] = TYPE_RESOLVE
             else:
-                raise Exception('Unknown type: %s' % dCommand[TYPE])
+                raise Exception(f'Unknown type: {dCommand[TYPE]}')
         self.maxSizeString = 250
-        if self.args.tcp:
-            self.maxCountStrings = 256
-        else:
-            self.maxCountStrings = 2
+        self.maxCountStrings = 256 if self.args.tcp else 2
 
     def resolve(self, request, handler):
         reply = request.reply()

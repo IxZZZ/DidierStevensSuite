@@ -26,10 +26,10 @@ import hashlib
 def IsHexDigit(string):
     if string == '':
         return False
-    for char in string:
-        if not (char.isdigit() or char.lower() >= 'a' and char.lower() <= 'f'):
-            return False
-    return True
+    return all(
+        (char.isdigit() or char.lower() >= 'a' and char.lower() <= 'f')
+        for char in string
+    )
 
 def HexDumpFile2Data(filename):
     try:
@@ -49,9 +49,7 @@ def HexDumpFile2Data(filename):
 def MatchByte(byte, data):
     if len(data) < 1:
         return (data, False)
-    if ord(data[0]) != byte:
-        return (data, False)
-    return (data[1:], True)
+    return (data, False) if ord(data[0]) != byte else (data[1:], True)
 
 def MatchLength(data):
     if len(data) < 1:
@@ -63,7 +61,7 @@ def MatchLength(data):
     if len(data) < countBytes:
         return (data, False, 0)
     length = 0
-    for index in range(0, countBytes):
+    for index in range(countBytes):
         length = ord(data[index]) + length * 0x100
     return (data[countBytes:], True, length)
 
@@ -167,17 +165,21 @@ def SplitPerXCharacters(string, count):
 
 def CiscoCalculateSSHFingerprint(filename):
     publicKeyDER = HexDumpFile2Data(filename)
-    if publicKeyDER == None:
+    if publicKeyDER is None:
         print('Error reading public key')
         return
     result = ParsePublicKeyDER(publicKeyDER)
-    if result == None:
+    if result is None:
         return
     fingerprint = CalcFingerprint(result[0], result[1])
     print(':'.join(SplitPerXCharacters(fingerprint, 2)))
 
 def Main():
-    oParser = optparse.OptionParser(usage='usage: %prog file\n' + __description__, version='%prog ' + __version__)
+    oParser = optparse.OptionParser(
+        usage='usage: %prog file\n' + __description__,
+        version=f'%prog {__version__}',
+    )
+
     (options, args) = oParser.parse_args()
 
     if len(args) != 1:

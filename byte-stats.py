@@ -359,17 +359,11 @@ Range is the printout of the byte values in the range (. is printed if the byte 
 
 # CIC: Call If Callable
 def CIC(expression):
-    if callable(expression):
-        return expression()
-    else:
-        return expression
+    return expression() if callable(expression) else expression
 
 # IFF: IF Function
 def IFF(expression, valueTrue, valueFalse):
-    if expression:
-        return CIC(valueTrue)
-    else:
-        return CIC(valueFalse)
+    return CIC(valueTrue) if expression else CIC(valueFalse)
 
 def File2Strings(filename):
     try:
@@ -384,23 +378,19 @@ def File2Strings(filename):
         f.close()
 
 def ProcessAt(argument):
-    if argument.startswith('@'):
-        strings = File2Strings(argument[1:])
-        if strings == None:
-            raise Exception('Error reading %s' % argument)
-        else:
-            return strings
-    else:
+    if not argument.startswith('@'):
         return [argument]
+    strings = File2Strings(argument[1:])
+    if strings is None:
+        raise Exception(f'Error reading {argument}')
+    else:
+        return strings
 
 def ExpandFilenameArguments(filenames):
     return list(collections.OrderedDict.fromkeys(sum(map(glob.glob, sum(map(ProcessAt, filenames), [])), [])))
 
 def P23Ord(value):
-    if type(value) == int:
-        return value
-    else:
-        return ord(value)
+    return value if type(value) == int else ord(value)
 
 class cCalculateByteStatistics():
 
@@ -427,24 +417,21 @@ class cCalculateByteStatistics():
 
         if byte >= 0x30 and byte <= 0x39 or byte >= 0x41 and byte <= 0x46 or byte >= 0x61 and byte <= 0x66:
             self.hexLength += 1
-        else:
-            if self.hexLength > 0:
-                self.hexLengthMax = max(self.hexLength, self.hexLengthMax)
-                self.hexLength = 0
+        elif self.hexLength > 0:
+            self.hexLengthMax = max(self.hexLength, self.hexLengthMax)
+            self.hexLength = 0
 
         if byte >= 0x30 and byte <= 0x39 or byte >= 0x41 and byte <= 0x5A or byte >= 0x61 and byte <= 0x7A or byte == 0x2B or byte == 0x2F:
             self.base64Length += 1
-        else:
-            if self.base64Length > 0:
-                self.base64LengthMax = max(self.base64Length, self.base64LengthMax)
-                self.base64Length = 0
+        elif self.base64Length > 0:
+            self.base64LengthMax = max(self.base64Length, self.base64LengthMax)
+            self.base64Length = 0
 
         if byte >= 0x20 and byte <= 0x7E or byte == 0x09:
             self.printableStringLength += 1
-        else:
-            if self.printableStringLength > 0:
-                self.printableStringLengthMax = max(self.printableStringLength, self.printableStringLengthMax)
-                self.printableStringLength = 0
+        elif self.printableStringLength > 0:
+            self.printableStringLengthMax = max(self.printableStringLength, self.printableStringLengthMax)
+            self.printableStringLength = 0
 
         self.previous = byte
 
@@ -463,12 +450,8 @@ class cCalculateByteStatistics():
             else:
                 countControlBytes += self.dPrevalence[iter]
         countControlBytes += self.dPrevalence[0x7F]
-        countPrintableBytes = 0
-        for iter in range(0x21, 0x7F):
-            countPrintableBytes += self.dPrevalence[iter]
-        countHighBytes = 0
-        for iter in range(0x80, 0x100):
-            countHighBytes += self.dPrevalence[iter]
+        countPrintableBytes = sum(self.dPrevalence[iter] for iter in range(0x21, 0x7F))
+        countHighBytes = sum(self.dPrevalence[iter] for iter in range(0x80, 0x100))
         countHexadecimalBytes = 0
         countBASE64Bytes = 0
         for iter in range(0x30, 0x3A):
@@ -499,15 +482,20 @@ class cCalculateByteStatistics():
         return sumValues, entropy, countUniqueBytes, countNullByte, countControlBytes, countWhitespaceBytes, countPrintableBytes, countHighBytes, countHexadecimalBytes, countBASE64Bytes, averageConsecutiveByteDifference, self.printableStringLength, self.hexLength, self.base64Length
 
 def GenerateLine(prefix, counter, sumValues, buckets, index, options):
-    line = '%-18s%9d %6.2f%%' % (prefix + ':', counter, float(counter) / sumValues * 100.0)
+    line = '%-18s%9d %6.2f%%' % (
+        f'{prefix}:',
+        counter,
+        float(counter) / sumValues * 100.0,
+    )
+
     if len(buckets) > 0:
-        value = min([properties[index] for position, properties in buckets])
+        value = min(properties[index] for position, properties in buckets)
         if sumValues == 256:
             line += ' %9d %6.2f%%' % (value, float(value) / sumValues * 100.0)
         else:
             line += ' %9d %6.2f%%' % (value, float(value) / float(options.bucket) * 100.0)
         if len(buckets) > 1:
-            value = max([properties[index] for position, properties in buckets])
+            value = max(properties[index] for position, properties in buckets)
             if sumValues == 256:
                 line += ' %9d %6.2f%%' % (value, float(value) / sumValues * 100.0)
             else:
@@ -515,10 +503,7 @@ def GenerateLine(prefix, counter, sumValues, buckets, index, options):
     return line
 
 def TruncateString(string, length):
-   if len(string) > length:
-       return string[:length] + '...'
-   else:
-       return string
+    return f'{string[:length]}...' if len(string) > length else string
 
 def ByteSub(byte1, byte2):
     diff = byte1 - byte2

@@ -139,7 +139,7 @@ class cMIFARE:
             return -1
             
     def PrepareKeyA(self, block, key):
-        if self.KeyBlockNumber == None:
+        if self.KeyBlockNumber is None:
             self.KeyA(block, key)
             self.KeyBlockNumber = block
         elif self.KeyBlockNumber / 4 != block / 4:
@@ -185,11 +185,11 @@ class cMIFARE:
         self.Connect()
 
         data = []
-        
+
         self.Poll()
         for block in range(1024 / 16): # MIFARE 1K
             data += self.ReadBlock(block)
-        
+
         self.Disconnect()
 
         return data
@@ -198,14 +198,14 @@ class cMIFARE:
         self.Connect()
 
         data = []
-        
+
         self.Poll()
         for block in range(1, 1024 / 16): # MIFARE 1K
             if (block+1) % 4 != 0:
                 data += self.ReadBlock(block)
-        
+
         self.Disconnect()
-        
+
         return data
 
     def WriteSequence(self, sequence, key=DEFAULT_KEYA):

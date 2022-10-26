@@ -19,10 +19,7 @@ Todo:
 """
 
 def ParseNumber(number):
-    if number.startswith('0x'):
-        return int(number[2:], 16)
-    else:
-        return int(number)
+    return int(number[2:], 16) if number.startswith('0x') else int(number)
 
 class cXOR1Decoder(cDecoderParent):
     name = 'XOR 1 byte decoder'
@@ -40,7 +37,7 @@ class cXOR1Decoder(cDecoderParent):
 
     def Decode(self):
         if sys.version_info[0] > 2:
-            decoded = bytes([(c ^ self.keyXOR1) for c in self.stream])
+            decoded = bytes(c ^ self.keyXOR1 for c in self.stream)
         else:
             decoded = ''.join([chr(ord(c) ^ self.keyXOR1) for c in self.stream])
         self.name = 'XOR 1 byte key 0x%02X' % self.keyXOR1

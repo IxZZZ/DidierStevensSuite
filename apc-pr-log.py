@@ -42,10 +42,7 @@ REPORT_FILE = 'apc-pr-log-report.txt'
 OUI_FILE = 'oui.txt'
 
 def chomp(line):
-    if len(line) > 0 and line[-1] == '\n':
-        return line[:-1]
-    else:
-        return line
+    return line[:-1] if len(line) > 0 and line[-1] == '\n' else line
 
 class cChannel:
     """Channel Hopping Class
@@ -82,12 +79,10 @@ class cPRData:
         self.packets = {timestamp[:8]:1}
 
     def add(self, timestamp, SSID):
-        if self.firstseen == None:
+        if self.firstseen is None:
             self.firstseen = timestamp
-            self.lastseen = timestamp
-        else:
-            self.lastseen = timestamp
-        if not SSID in self.SSIDs:
+        self.lastseen = timestamp
+        if SSID not in self.SSIDs:
             self.SSIDs.append(SSID)
         if timestamp[:8] in self.packets:
             self.packets[timestamp[:8]] += 1
@@ -102,18 +97,17 @@ class cExclude:
         self.excludeMACs = []
         self.excludeOUIs = []
         if filename != None:
-            f = open(filename, 'r')
-            for line in f:
-                line = chomp(line.upper())
-                if len(line) == 6:
-                    self.excludeOUIs.append(line)
-                elif len(line) == 12:
-                    self.excludeMACs.append(line)
-            f.close()
+            with open(filename, 'r') as f:
+                for line in f:
+                    line = chomp(line.upper())
+                    if len(line) == 6:
+                        self.excludeOUIs.append(line)
+                    elif len(line) == 12:
+                        self.excludeMACs.append(line)
 
     def test(self, MAC):
         MAC = MAC.upper()
-        return MAC[0:6] in self.excludeOUIs or MAC in self.excludeMACs
+        return MAC[:6] in self.excludeOUIs or MAC in self.excludeMACs
 
 class cPacket(object):
     """Class to parse packets
@@ -124,7 +118,7 @@ class cPacket(object):
         self.raw_packet = raw_packet
         self.frame_control = None
         fmt_ppi = 'BBHL' # pph_version pph_flags pph_len pph_dlt
-        self.PpiPacketHeader = unpack(fmt_ppi, self.raw_packet[0:calcsize(fmt_ppi)])
+        self.PpiPacketHeader = unpack(fmt_ppi, self.raw_packet[:calcsize(fmt_ppi)])
         if self.__CheckFCS():
             self.frame_control = unpack('H', self.raw_packet[self.PpiPacketHeader[2]:self.PpiPacketHeader[2]+2])[0] & 0xf6
 
@@ -138,7 +132,7 @@ class cPacket(object):
         
     def timestamp(self):
         gmt = time.gmtime(self.bpf_header[0])
-        return ('%04d%02d%02d-%02d%02d%02d' % gmt[0:6]) + ('.%06d' % self.bpf_header[1])
+        return '%04d%02d%02d-%02d%02d%02d' % gmt[:6] + '.%06d' % self.bpf_header[1]
 
 class cPacketPR(cPacket):
     """Class to parse probe request packets
@@ -153,7 +147,7 @@ class cPacketPR(cPacket):
             probe_header = unpack(fmt_ph, self.raw_packet[self.PpiPacketHeader[2]:self.PpiPacketHeader[2]+calcsize(fmt_ph)])
             parameters = self.raw_packet[self.PpiPacketHeader[2]+calcsize(fmt_ph):]
             fmt_prm = 'BB' # tag_number tag_length
-            parameter = unpack(fmt_prm, parameters[0:calcsize(fmt_prm)])
+            parameter = unpack(fmt_prm, parameters[:calcsize(fmt_prm)])
             if parameter[0] == 0 and parameter[1] > 0 and parameter[1] < 33:
                 self.MAC = ''.join([('%02X' % ord(c)) for c in probe_header[3]])
                 self.SSID = parameters[2:2+parameter[1]]
@@ -183,18 +177,13 @@ class cOUI:
         self.OUI = {}
         if os.path.exists(filename):
             reOUI = re.compile('([0-9A-F]+)\s+\(base 16\)\s+(.+)')
-            f = open(filename, 'r')
-            for line in f:
-                oMatch = reOUI.match(line)
-                if oMatch:
-                    self.OUI[oMatch.group(1)] = oMatch.group(2)
-            f.close()
+            with open(filename, 'r') as f:
+                for line in f:
+                    if oMatch := reOUI.match(line):
+                        self.OUI[oMatch[1]] = oMatch[2]
     
     def lookup(self, MAC):
-        if MAC[:6].upper() in self.OUI:
-            return self.OUI[MAC[:6].upper()]
-        else:
-            return ''
+        return self.OUI[MAC[:6].upper()] if MAC[:6].upper() in self.OUI else ''
 
 def Main():
     """Tool to log WiFi probe requests

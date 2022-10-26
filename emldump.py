@@ -233,22 +233,13 @@ To include extra data with each use of emldump, define environment variable EMLD
 
 #Convert 2 Bytes If Python 3
 def C2BIP3(string):
-    if sys.version_info[0] > 2:
-        return bytes([ord(x) for x in string])
-    else:
-        return string
+    return bytes(ord(x) for x in string) if sys.version_info[0] > 2 else string
 
 def P23Ord(value):
-    if type(value) == int:
-        return value
-    else:
-        return ord(value)
+    return value if type(value) == int else ord(value)
 
 def P23Chr(value):
-    if type(value) == int:
-        return chr(value)
-    else:
-        return value
+    return chr(value) if type(value) == int else value
 
 def File2String(filename):
     try:
@@ -272,17 +263,11 @@ dumplinelength = 16
 
 # CIC: Call If Callable
 def CIC(expression):
-    if callable(expression):
-        return expression()
-    else:
-        return expression
+    return expression() if callable(expression) else expression
 
 # IFF: IF Function
 def IFF(expression, valueTrue, valueFalse):
-    if expression:
-        return CIC(valueTrue)
-    else:
-        return CIC(valueFalse)
+    return CIC(valueTrue) if expression else CIC(valueFalse)
 
 def IsNumeric(str):
     return re.match('^[0-9]+', str)
@@ -332,14 +317,13 @@ def LoadDecoders(decoders, verbose):
         try:
             if not decoder.lower().endswith('.py'):
                 decoder += '.py'
-            if os.path.dirname(decoder) == '':
-                if not os.path.exists(decoder):
-                    scriptDecoder = os.path.join(scriptPath, decoder)
-                    if os.path.exists(scriptDecoder):
-                        decoder = scriptDecoder
+            if os.path.dirname(decoder) == '' and not os.path.exists(decoder):
+                scriptDecoder = os.path.join(scriptPath, decoder)
+                if os.path.exists(scriptDecoder):
+                    decoder = scriptDecoder
             exec(open(decoder, 'r').read(), globals(), globals())
         except Exception as e:
-            print('Error loading decoder: %s' % decoder)
+            print(f'Error loading decoder: {decoder}')
             if verbose:
                 raise e
 
@@ -374,14 +358,13 @@ def File2Strings(filename):
         f.close()
 
 def ProcessAt(argument):
-    if argument.startswith('@'):
-        strings = File2Strings(argument[1:])
-        if strings == None:
-            raise Exception('Error reading %s' % argument)
-        else:
-            return strings
-    else:
+    if not argument.startswith('@'):
         return [argument]
+    strings = File2Strings(argument[1:])
+    if strings is None:
+        raise Exception(f'Error reading {argument}')
+    else:
+        return strings
 
 class cDumpStream():
     def __init__(self):
@@ -408,7 +391,7 @@ def HexDump(data):
 def CombineHexAscii(hexDump, asciiDump):
     if hexDump == '':
         return ''
-    return hexDump + '  ' + (' ' * (3 * (16 - len(asciiDump)))) + asciiDump
+    return f'{hexDump}  ' + ' ' * (3 * (16 - len(asciiDump))) + asciiDump
 
 def HexAsciiDump(data):
     oDumpStream = cDumpStream()
@@ -434,7 +417,7 @@ def StdoutWriteChunked(data):
             sys.stdout.buffer.write(data)
     else:
         while data != '':
-            sys.stdout.write(data[0:10000])
+            sys.stdout.write(data[:10000])
             try:
                 sys.stdout.flush()
             except IOError:
@@ -447,10 +430,7 @@ CUTTERM_FIND = 2
 CUTTERM_LENGTH = 3
 
 def Replace(string, dReplacements):
-    if string in dReplacements:
-        return dReplacements[string]
-    else:
-        return string
+    return dReplacements[string] if string in dReplacements else string
 
 def ParseInteger(argument):
     sign = 1
@@ -468,48 +448,63 @@ def ParseCutTerm(argument):
     if argument == '':
         return CUTTERM_NOTHING, None, ''
     oMatch = re.match(r'\-?0x([0-9a-f]+)', argument, re.I)
-    if oMatch == None:
+    if oMatch is None:
         oMatch = re.match(r'\-?(\d+)', argument)
     else:
-        value = int(oMatch.group(1), 16)
+        value = int(oMatch[1], 16)
         if argument.startswith('-'):
             value = -value
-        return CUTTERM_POSITION, value, argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return CUTTERM_POSITION, value, argument[len(oMatch[0]):]
+    if oMatch is None:
         oMatch = re.match(r'\[([0-9a-f]+)\](\d+)?([+-](?:0x[0-9a-f]+|\d+))?', argument, re.I)
     else:
-        value = int(oMatch.group(1))
+        value = int(oMatch[1])
         if argument.startswith('-'):
             value = -value
-        return CUTTERM_POSITION, value, argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return CUTTERM_POSITION, value, argument[len(oMatch[0]):]
+    if oMatch is None:
         oMatch = re.match(r"\[u?\'(.+?)\'\](\d+)?([+-](?:0x[0-9a-f]+|\d+))?", argument)
+    elif len(oMatch[1]) % 2 == 1:
+        raise Exception("Uneven length hexadecimal string")
     else:
-        if len(oMatch.group(1)) % 2 == 1:
-            raise Exception("Uneven length hexadecimal string")
-        else:
-            return CUTTERM_FIND, (binascii.a2b_hex(oMatch.group(1)), int(Replace(oMatch.group(2), {None: '1'})), ParseInteger(Replace(oMatch.group(3), {None: '0'}))), argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return (
+            CUTTERM_FIND,
+            (
+                binascii.a2b_hex(oMatch[1]),
+                int(Replace(oMatch[2], {None: '1'})),
+                ParseInteger(Replace(oMatch[3], {None: '0'})),
+            ),
+            argument[len(oMatch[0]) :],
+        )
+
+    if oMatch is None:
         return None, None, argument
-    else:
-        if argument.startswith("[u'"):
-            # convert ascii to unicode 16 byte sequence
-            searchtext = oMatch.group(1).decode('unicode_escape').encode('utf16')[2:]
-        else:
-            searchtext = oMatch.group(1)
-        return CUTTERM_FIND, (searchtext, int(Replace(oMatch.group(2), {None: '1'})), ParseInteger(Replace(oMatch.group(3), {None: '0'}))), argument[len(oMatch.group(0)):]
+    searchtext = (
+        oMatch[1].decode('unicode_escape').encode('utf16')[2:]
+        if argument.startswith("[u'")
+        else oMatch[1]
+    )
+
+    return (
+        CUTTERM_FIND,
+        (
+            searchtext,
+            int(Replace(oMatch[2], {None: '1'})),
+            ParseInteger(Replace(oMatch[3], {None: '0'})),
+        ),
+        argument[len(oMatch[0]) :],
+    )
 
 def ParseCutArgument(argument):
     type, value, remainder = ParseCutTerm(argument.strip())
     if type == CUTTERM_NOTHING:
         return CUTTERM_NOTHING, None, CUTTERM_NOTHING, None
-    elif type == None:
-        if remainder.startswith(':'):
-            typeLeft = CUTTERM_NOTHING
-            valueLeft = None
-            remainder = remainder[1:]
-        else:
+    elif type is None:
+        if not remainder.startswith(':'):
             return None, None, None, None
+        typeLeft = CUTTERM_NOTHING
+        valueLeft = None
+        remainder = remainder[1:]
     else:
         typeLeft = type
         valueLeft = value
@@ -524,7 +519,7 @@ def ParseCutArgument(argument):
     type, value, remainder = ParseCutTerm(remainder)
     if type == CUTTERM_POSITION and remainder == 'l':
         return typeLeft, valueLeft, CUTTERM_LENGTH, value
-    elif type == None or remainder != '':
+    elif type is None or remainder != '':
         return None, None, None, None
     elif type == CUTTERM_FIND and value[1] == 0:
         return None, None, None, None
@@ -546,7 +541,7 @@ def CutData(stream, cutArgument):
 
     typeLeft, valueLeft, typeRight, valueRight = ParseCutArgument(cutArgument)
 
-    if typeLeft == None:
+    if typeLeft is None:
         return [stream, None, None]
 
     if typeLeft == CUTTERM_NOTHING:
@@ -582,19 +577,13 @@ def CutData(stream, cutArgument):
     return [stream[positionBegin:positionEnd], positionBegin, positionEnd]
 
 def ExtraInfoMD5(data):
-    if data == None:
-        return ''
-    return hashlib.md5(data).hexdigest()
+    return '' if data is None else hashlib.md5(data).hexdigest()
 
 def ExtraInfoSHA1(data):
-    if data == None:
-        return ''
-    return hashlib.sha1(data).hexdigest()
+    return '' if data is None else hashlib.sha1(data).hexdigest()
 
 def ExtraInfoSHA256(data):
-    if data == None:
-        return ''
-    return hashlib.sha256(data).hexdigest()
+    return '' if data is None else hashlib.sha256(data).hexdigest()
 
 def CalculateByteStatistics(dPrevalence):
     sumValues = sum(dPrevalence.values())
@@ -608,12 +597,8 @@ def CalculateByteStatistics(dPrevalence):
         else:
             countControlBytes += dPrevalence[iter]
     countControlBytes += dPrevalence[0x7F]
-    countPrintableBytes = 0
-    for iter in range(0x21, 0x7F):
-        countPrintableBytes += dPrevalence[iter]
-    countHighBytes = 0
-    for iter in range(0x80, 0x100):
-        countHighBytes += dPrevalence[iter]
+    countPrintableBytes = sum(dPrevalence[iter] for iter in range(0x21, 0x7F))
+    countHighBytes = sum(dPrevalence[iter] for iter in range(0x80, 0x100))
     entropy = 0.0
     for iter in range(0x100):
         if dPrevalence[iter] > 0:
@@ -623,7 +608,7 @@ def CalculateByteStatistics(dPrevalence):
     return sumValues, entropy, countUniqueBytes, countNullByte, countControlBytes, countWhitespaceBytes, countPrintableBytes, countHighBytes
 
 def ExtraInfoENTROPY(data):
-    if data == None:
+    if data is None:
         return ''
     dPrevalence = {iter: 0 for iter in range(0x100)}
     for char in data:
@@ -632,27 +617,23 @@ def ExtraInfoENTROPY(data):
     return '%f' % entropy
 
 def ExtraInfoHEADHEX(data):
-    if data == None:
-        return ''
-    return binascii.hexlify(data[:16]).decode()
+    return '' if data is None else binascii.hexlify(data[:16]).decode()
 
 def ExtraInfoHEADASCII(data):
-    if data == None:
+    if data is None:
         return ''
     return ''.join([IFF(P23Ord(b) >= 32 and P23Ord(b) < 127, P23Chr(b), '.') for b in data[:16]])
 
 def ExtraInfoTAILHEX(data):
-    if data == None:
-        return ''
-    return binascii.hexlify(data[-16:]).decode()
+    return '' if data is None else binascii.hexlify(data[-16:]).decode()
 
 def ExtraInfoTAILASCII(data):
-    if data == None:
+    if data is None:
         return ''
     return ''.join([IFF(P23Ord(b) >= 32 and P23Ord(b) < 127, P23Chr(b), '.') for b in data[-16:]])
 
 def ExtraInfoHISTOGRAM(data):
-    if data == None:
+    if data is None:
         return ''
     dPrevalence = {iter: 0 for iter in range(0x100)}
     for char in data:
@@ -665,21 +646,15 @@ def ExtraInfoHISTOGRAM(data):
         if dPrevalence[iter] > 0:
             result.append('0x%02x:%d' % (iter, dPrevalence[iter]))
             count += 1
-            if minimum == None:
-                minimum = iter
-            else:
-                minimum = min(minimum, iter)
-            if maximum == None:
-                maximum = iter
-            else:
-                maximum = max(maximum, iter)
+            minimum = iter if minimum is None else min(minimum, iter)
+            maximum = iter if maximum is None else max(maximum, iter)
     result.insert(0, '%d' % count)
-    result.insert(1, IFF(minimum == None, '', '0x%02x' % minimum))
-    result.insert(2, IFF(maximum == None, '', '0x%02x' % maximum))
+    result.insert(1, IFF(minimum is None, '', '0x%02x' % minimum))
+    result.insert(2, IFF(maximum is None, '', '0x%02x' % maximum))
     return ','.join(result)
 
 def ExtraInfoBYTESTATS(data):
-    if data == None:
+    if data is None:
         return ''
     dPrevalence = {iter: 0 for iter in range(0x100)}
     for char in data:
@@ -695,21 +670,25 @@ def GenerateExtraInfo(extra, index, indicator, type, stream):
         prefix = ''
     else:
         prefix = ' '
-    dExtras = {'%INDEX%': lambda x: '%d' % index,
-               '%INDICATOR%': lambda x: indicator,
-               '%LENGTH%': lambda x: IFF(stream == None, '', lambda: '%d' % len(stream)),
-               '%TYPE%': lambda x: type,
-               '%MD5%': ExtraInfoMD5,
-               '%SHA1%': ExtraInfoSHA1,
-               '%SHA256%': ExtraInfoSHA256,
-               '%ENTROPY%': ExtraInfoENTROPY,
-               '%HEADHEX%': ExtraInfoHEADHEX,
-               '%HEADASCII%': ExtraInfoHEADASCII,
-               '%TAILHEX%': ExtraInfoTAILHEX,
-               '%TAILASCII%': ExtraInfoTAILASCII,
-               '%HISTOGRAM%': ExtraInfoHISTOGRAM,
-               '%BYTESTATS%': ExtraInfoBYTESTATS,
-              }
+    dExtras = {
+        '%INDEX%': lambda x: '%d' % index,
+        '%INDICATOR%': lambda x: indicator,
+        '%LENGTH%': lambda x: IFF(
+            stream is None, '', lambda: '%d' % len(stream)
+        ),
+        '%TYPE%': lambda x: type,
+        '%MD5%': ExtraInfoMD5,
+        '%SHA1%': ExtraInfoSHA1,
+        '%SHA256%': ExtraInfoSHA256,
+        '%ENTROPY%': ExtraInfoENTROPY,
+        '%HEADHEX%': ExtraInfoHEADHEX,
+        '%HEADASCII%': ExtraInfoHEADASCII,
+        '%TAILHEX%': ExtraInfoTAILHEX,
+        '%TAILASCII%': ExtraInfoTAILASCII,
+        '%HISTOGRAM%': ExtraInfoHISTOGRAM,
+        '%BYTESTATS%': ExtraInfoBYTESTATS,
+    }
+
     for variable in dExtras:
         if variable in extra:
             extra = extra.replace(variable, dExtras[variable](stream))
@@ -726,13 +705,11 @@ def ContainsField(line):
     return False
 
 def StartsWithWhitespace(line):
-    if line == '':
-        return False
-    return line[0] in ' \t'
+    return False if line == '' else line[0] in ' \t'
 
 def PrintWarningSelection(select, selectionCounter):
     if select != '' and selectionCounter == 0:
-        print('Warning: no part was selected with expression %s' % select)
+        print(f'Warning: no part was selected with expression {select}')
 
 def EMLDump(emlfilename, options):
     FixPipe()
@@ -757,7 +734,7 @@ def EMLDump(emlfilename, options):
     LoadDecoders(options.decoders, True)
 
     if options.yara != None:
-        if not 'yara' in sys.modules:
+        if 'yara' not in sys.modules:
             print('Error: option yara requires the YARA Python module.')
             return
         rules, rulesVerbose = YARACompile(options.yara)
@@ -807,21 +784,15 @@ def EMLDump(emlfilename, options):
 
     oEML = email.message_from_string(data)
 
+    counter = 1
     if options.select == '':
-        if options.yara == None:
-            counter = 1
+        if options.yara is None:
             for oPart in oEML.walk():
                 data = oPart.get_payload(decode=True)
-                if data == None:
-                    lengthString = '       '
-                else:
-                    lengthString = '%7d' % len(data)
+                lengthString = '       ' if data is None else '%7d' % len(data)
                 extrainfo = GenerateExtraInfo(options.extra, counter, IFF(oPart.is_multipart(), 'M', ''), oPart.get_content_type(), data)
                 fieldfilename = oPart.get_filename()
-                if fieldfilename == None:
-                    fieldfilename = ''
-                else:
-                    fieldfilename = ' (' + fieldfilename + ')'
+                fieldfilename = '' if fieldfilename is None else f' ({fieldfilename})'
                 line = '%d: %s %s %s%s' % (counter, IFF(oPart.is_multipart(), 'M', ' '), lengthString, oPart.get_content_type(), fieldfilename)
                 if options.extra.startswith('!'):
                     line = ''
@@ -829,7 +800,6 @@ def EMLDump(emlfilename, options):
                 print(line)
                 counter += 1
         else:
-            counter = 1
             for oPart in oEML.walk():
                 data = oPart.get_payload(decode=True)
                 if data != None:
@@ -839,7 +809,7 @@ def EMLDump(emlfilename, options):
                             oDecoder = cDecoder(data, options.decoderoptions)
                             oDecoders.append(oDecoder)
                         except Exception as e:
-                            print('Error instantiating decoder: %s' % cDecoder.name)
+                            print(f'Error instantiating decoder: {cDecoder.name}')
                             if options.verbose:
                                 raise e
                             return
@@ -849,7 +819,7 @@ def EMLDump(emlfilename, options):
                                 lengthString = '%7d' % len(data)
                                 decoderName = oDecoder.Name()
                                 if decoderName != '':
-                                    decoderName = ' (%s)' % decoderName
+                                    decoderName = f' ({decoderName})'
                                 print('%d: %s %s %-20s %s %s%s' % (counter, IFF(oPart.is_multipart(), 'M', ' '), lengthString, oPart.get_content_type(), result.namespace, result.rule, decoderName))
                                 if options.yarastrings:
                                     for stringdata in result.strings:
@@ -866,7 +836,6 @@ def EMLDump(emlfilename, options):
             DumpFunction = HexDump
         else:
             DumpFunction = HexAsciiDump
-        counter = 1
         selectionCounter = 0
         for oPart in oEML.walk():
             if IsNumeric(options.select) and counter == int(options.select) or not IsNumeric(options.select) and oPart.get_content_type() == options.select:
@@ -884,7 +853,11 @@ def OptionsEnvironmentVariables(options):
         options.extra = os.getenv('EMLDUMP_EXTRA', options.extra)
 
 def Main():
-    oParser = optparse.OptionParser(usage='usage: %prog [options] [mimefile]\n' + __description__, version='%prog ' + __version__)
+    oParser = optparse.OptionParser(
+        usage='usage: %prog [options] [mimefile]\n' + __description__,
+        version=f'%prog {__version__}',
+    )
+
     oParser.add_option('-m', '--man', action='store_true', default=False, help='Print manual')
     oParser.add_option('-d', '--dump', action='store_true', default=False, help='perform dump')
     oParser.add_option('-x', '--hexdump', action='store_true', default=False, help='perform hex dump')
@@ -906,8 +879,11 @@ def Main():
         PrintManual()
         return
 
-    if ParseCutArgument(options.cut)[0] == None:
-        print('Error: the expression of the cut option (-c) is invalid: %s' % options.cut)
+    if ParseCutArgument(options.cut)[0] is None:
+        print(
+            f'Error: the expression of the cut option (-c) is invalid: {options.cut}'
+        )
+
         return 0
 
     OptionsEnvironmentVariables(options)
