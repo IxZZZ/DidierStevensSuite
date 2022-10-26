@@ -70,11 +70,9 @@ except:
     pass
 if sys.version_info[0] >= 3:
     from io import StringIO
-else:
-    from cStringIO import StringIO
-if sys.version_info[0] >= 3:
     from io import BytesIO as DataIO
 else:
+    from cStringIO import StringIO
     from cStringIO import StringIO as DataIO
 
 dumplinelength = 16
@@ -307,36 +305,21 @@ When this option is not used, the complete datastream is selected.
 
 #Convert 2 Bytes If Python 3
 def C2BIP3(string):
-    if sys.version_info[0] > 2:
-        return bytes([ord(x) for x in string])
-    else:
-        return string
+    return bytes(ord(x) for x in string) if sys.version_info[0] > 2 else string
 
 # CIC: Call If Callable
 def CIC(expression):
-    if callable(expression):
-        return expression()
-    else:
-        return expression
+    return expression() if callable(expression) else expression
 
 def P23Ord(value):
-    if type(value) == int:
-        return value
-    else:
-        return ord(value)
+    return value if type(value) == int else ord(value)
 
 def P23Chr(value):
-    if type(value) == int:
-        return chr(value)
-    else:
-        return value
+    return chr(value) if type(value) == int else value
 
 # IFF: IF Function
 def IFF(expression, valueTrue, valueFalse):
-    if expression:
-        return CIC(valueTrue)
-    else:
-        return CIC(valueFalse)
+    return CIC(valueTrue) if expression else CIC(valueFalse)
 
 def File2String(filename):
     try:
@@ -374,7 +357,7 @@ class cDump():
         countSpaces = 3 * (self.dumplinelength - len(asciiDump))
         if len(asciiDump) <= self.dumplinelength / 2:
             countSpaces += 1
-        return hexDump + '  ' + (' ' * countSpaces) + asciiDump
+        return f'{hexDump}  ' + ' ' * countSpaces + asciiDump
 
     def HexAsciiDump(self, rle=False):
         oDumpStream = self.cDumpStream(self.prefix)
@@ -432,10 +415,7 @@ class cDump():
 
     @staticmethod
     def C2IIP2(data):
-        if sys.version_info[0] > 2:
-            return data
-        else:
-            return ord(data)
+        return data if sys.version_info[0] > 2 else ord(data)
 
 def HexDump(data):
     return cDump(data, dumplinelength=dumplinelength).HexDump()
@@ -452,7 +432,7 @@ def StdoutWriteChunked(data):
             sys.stdout.buffer.write(data)
     else:
         while data != '':
-            sys.stdout.write(data[0:10000])
+            sys.stdout.write(data[:10000])
             try:
                 sys.stdout.flush()
             except IOError:
@@ -477,14 +457,13 @@ def File2Strings(filename):
         f.close()
 
 def ProcessAt(argument):
-    if argument.startswith('@'):
-        strings = File2Strings(argument[1:])
-        if strings == None:
-            raise Exception('Error reading %s' % argument)
-        else:
-            return strings
-    else:
+    if not argument.startswith('@'):
         return [argument]
+    strings = File2Strings(argument[1:])
+    if strings is None:
+        raise Exception(f'Error reading {argument}')
+    else:
+        return strings
 
 def ExpandFilenameArguments(filenames):
     return list(collections.OrderedDict.fromkeys(sum(map(glob.glob, sum(map(ProcessAt, filenames), [])), [])))
@@ -508,10 +487,8 @@ def CalculateByteStatistics(dPrevalence=None, data=None):
     longestString = 0
     longestBASE64String = 0
     longestHEXString = 0
-    base64digits = b'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/'
-    hexdigits = b'abcdefABCDEF0123456789'
     averageConsecutiveByteDifference = None
-    if dPrevalence == None:
+    if dPrevalence is None:
         dPrevalence = {iter: 0 for iter in range(0x100)}
         sumDifferences = 0.0
         previous = None
@@ -519,6 +496,8 @@ def CalculateByteStatistics(dPrevalence=None, data=None):
             lengthString = 0
             lengthBASE64String = 0
             lengthHEXString = 0
+            base64digits = b'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/'
+            hexdigits = b'abcdefABCDEF0123456789'
             for byte in data:
                 dPrevalence[byte] += 1
                 if previous != None:
@@ -559,12 +538,8 @@ def CalculateByteStatistics(dPrevalence=None, data=None):
         else:
             countControlBytes += dPrevalence[iter]
     countControlBytes += dPrevalence[0x7F]
-    countPrintableBytes = 0
-    for iter in range(0x21, 0x7F):
-        countPrintableBytes += dPrevalence[iter]
-    countHighBytes = 0
-    for iter in range(0x80, 0x100):
-        countHighBytes += dPrevalence[iter]
+    countPrintableBytes = sum(dPrevalence[iter] for iter in range(0x21, 0x7F))
+    countHighBytes = sum(dPrevalence[iter] for iter in range(0x80, 0x100))
     countHexadecimalBytes = 0
     countBASE64Bytes = 0
     for iter in range(0x30, 0x3A):
@@ -589,7 +564,7 @@ def CalculateByteStatistics(dPrevalence=None, data=None):
 
 def CalculateFileMetaData(data):
     fileSize, entropy, countUniqueBytes, countNullByte, countControlBytes, countWhitespaceBytes, countPrintableBytes, countHighBytes, countHexadecimalBytes, countBASE64Bytes, averageConsecutiveByteDifference, longestString, longestHEXString, longestBASE64String = CalculateByteStatistics(data=data)
-    magicPrintable, magicHex = Magic(data[0:4])
+    magicPrintable, magicHex = Magic(data[:4])
     return CalculateChosenHash(data)[0], magicPrintable, magicHex, fileSize, entropy, countUniqueBytes, countNullByte, countControlBytes, countWhitespaceBytes, countPrintableBytes, countHighBytes, countHexadecimalBytes, countBASE64Bytes, averageConsecutiveByteDifference, longestString, longestHEXString, longestBASE64String
 
 CUTTERM_NOTHING = 0
@@ -598,10 +573,7 @@ CUTTERM_FIND = 2
 CUTTERM_LENGTH = 3
 
 def Replace(string, dReplacements):
-    if string in dReplacements:
-        return dReplacements[string]
-    else:
-        return string
+    return dReplacements[string] if string in dReplacements else string
 
 def ParseInteger(argument):
     sign = 1
@@ -619,48 +591,63 @@ def ParseCutTerm(argument):
     if argument == '':
         return CUTTERM_NOTHING, None, ''
     oMatch = re.match(r'\-?0x([0-9a-f]+)', argument, re.I)
-    if oMatch == None:
+    if oMatch is None:
         oMatch = re.match(r'\-?(\d+)', argument)
     else:
-        value = int(oMatch.group(1), 16)
+        value = int(oMatch[1], 16)
         if argument.startswith('-'):
             value = -value
-        return CUTTERM_POSITION, value, argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return CUTTERM_POSITION, value, argument[len(oMatch[0]):]
+    if oMatch is None:
         oMatch = re.match(r'\[([0-9a-f]+)\](\d+)?([+-](?:0x[0-9a-f]+|\d+))?', argument, re.I)
     else:
-        value = int(oMatch.group(1))
+        value = int(oMatch[1])
         if argument.startswith('-'):
             value = -value
-        return CUTTERM_POSITION, value, argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return CUTTERM_POSITION, value, argument[len(oMatch[0]):]
+    if oMatch is None:
         oMatch = re.match(r"\[u?\'(.+?)\'\](\d+)?([+-](?:0x[0-9a-f]+|\d+))?", argument)
+    elif len(oMatch[1]) % 2 == 1:
+        raise Exception("Uneven length hexadecimal string")
     else:
-        if len(oMatch.group(1)) % 2 == 1:
-            raise Exception("Uneven length hexadecimal string")
-        else:
-            return CUTTERM_FIND, (binascii.a2b_hex(oMatch.group(1)), int(Replace(oMatch.group(2), {None: '1'})), ParseInteger(Replace(oMatch.group(3), {None: '0'}))), argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return (
+            CUTTERM_FIND,
+            (
+                binascii.a2b_hex(oMatch[1]),
+                int(Replace(oMatch[2], {None: '1'})),
+                ParseInteger(Replace(oMatch[3], {None: '0'})),
+            ),
+            argument[len(oMatch[0]) :],
+        )
+
+    if oMatch is None:
         return None, None, argument
-    else:
-        if argument.startswith("[u'"):
-            # convert ascii to unicode 16 byte sequence
-            searchtext = oMatch.group(1).decode('unicode_escape').encode('utf16')[2:]
-        else:
-            searchtext = oMatch.group(1)
-        return CUTTERM_FIND, (searchtext, int(Replace(oMatch.group(2), {None: '1'})), ParseInteger(Replace(oMatch.group(3), {None: '0'}))), argument[len(oMatch.group(0)):]
+    searchtext = (
+        oMatch[1].decode('unicode_escape').encode('utf16')[2:]
+        if argument.startswith("[u'")
+        else oMatch[1]
+    )
+
+    return (
+        CUTTERM_FIND,
+        (
+            searchtext,
+            int(Replace(oMatch[2], {None: '1'})),
+            ParseInteger(Replace(oMatch[3], {None: '0'})),
+        ),
+        argument[len(oMatch[0]) :],
+    )
 
 def ParseCutArgument(argument):
     type, value, remainder = ParseCutTerm(argument.strip())
     if type == CUTTERM_NOTHING:
         return CUTTERM_NOTHING, None, CUTTERM_NOTHING, None
-    elif type == None:
-        if remainder.startswith(':'):
-            typeLeft = CUTTERM_NOTHING
-            valueLeft = None
-            remainder = remainder[1:]
-        else:
+    elif type is None:
+        if not remainder.startswith(':'):
             return None, None, None, None
+        typeLeft = CUTTERM_NOTHING
+        valueLeft = None
+        remainder = remainder[1:]
     else:
         typeLeft = type
         valueLeft = value
@@ -675,7 +662,7 @@ def ParseCutArgument(argument):
     type, value, remainder = ParseCutTerm(remainder)
     if type == CUTTERM_POSITION and remainder == 'l':
         return typeLeft, valueLeft, CUTTERM_LENGTH, value
-    elif type == None or remainder != '':
+    elif type is None or remainder != '':
         return None, None, None, None
     elif type == CUTTERM_FIND and value[1] == 0:
         return None, None, None, None
@@ -697,7 +684,7 @@ def CutData(stream, cutArgument):
 
     typeLeft, valueLeft, typeRight, valueRight = ParseCutArgument(cutArgument)
 
-    if typeLeft == None:
+    if typeLeft is None:
         return [stream, None, None]
 
     if typeLeft == CUTTERM_NOTHING:
@@ -747,10 +734,7 @@ class cHashChecksum8():
         self.sum = 0
 
     def update(self, data):
-        if sys.version_info[0] >= 3:
-            self.sum += sum(data)
-        else:
-            self.sum += sum(map(ord, data))
+        self.sum += sum(data) if sys.version_info[0] >= 3 else sum(map(ord, data))
 
     def hexdigest(self):
         return '%08x' % (self.sum)
@@ -764,14 +748,21 @@ def GetHashObjects(algorithms):
 
     if algorithms == '':
         algorithms = os.getenv('DSS_DEFAULT_HASH_ALGORITHMS', 'md5')
-    if ',' in algorithms:
-        hashes = algorithms.split(',')
-    else:
-        hashes = algorithms.split(';')
+    hashes = algorithms.split(',') if ',' in algorithms else algorithms.split(';')
     for name in hashes:
-        if not name in dSpecialHashes.keys() and not name in hashlib.algorithms_available:
-            print('Error: unknown hash algorithm: %s' % name)
-            print('Available hash algorithms: ' + ' '.join([name for name in list(hashlib.algorithms_available)] + list(dSpecialHashes.keys())))
+        if (
+            name not in dSpecialHashes.keys()
+            and name not in hashlib.algorithms_available
+        ):
+            print(f'Error: unknown hash algorithm: {name}')
+            print(
+                'Available hash algorithms: '
+                + ' '.join(
+                    list(list(hashlib.algorithms_available))
+                    + list(dSpecialHashes.keys())
+                )
+            )
+
             return [], {}
         elif name in dSpecialHashes.keys():
             dHashes[name] = dSpecialHashes[name]()
@@ -800,27 +791,21 @@ def DumpFunctionStrings(data):
     return ''.join([extractedstring + '\n' for extractedstring in ExtractStrings(data)])
 
 def RemoveLeadingEmptyLines(data):
-    if data[0] == '':
-        return RemoveLeadingEmptyLines(data[1:])
-    else:
-        return data
+    return RemoveLeadingEmptyLines(data[1:]) if data[0] == '' else data
 
 def RemoveTrailingEmptyLines(data):
-    if data[-1] == '':
-        return RemoveTrailingEmptyLines(data[:-1])
-    else:
-        return data
+    return RemoveTrailingEmptyLines(data[:-1]) if data[-1] == '' else data
 
 def HeadTail(data, apply):
     count = 10
-    if apply:
-        lines = RemoveTrailingEmptyLines(RemoveLeadingEmptyLines(data.split('\n')))
-        if len(lines) <= count * 2:
-            return data
-        else:
-            return '\n'.join(lines[0:count] + ['...'] + lines[-count:])
-    else:
+    if not apply:
         return data
+    lines = RemoveTrailingEmptyLines(RemoveLeadingEmptyLines(data.split('\n')))
+    return (
+        data
+        if len(lines) <= count * 2
+        else '\n'.join(lines[:count] + ['...'] + lines[-count:])
+    )
 
 def Translate(expression):
     return lambda x: x.decode(expression)
@@ -947,7 +932,7 @@ def DecodeDataAH(items, PreProcessFunction, PostProcessFunction):
 def ReverseCount(data, count):
     result = b''
     while data != b'':
-        part = data[0:count]
+        part = data[:count]
         data = data[count:]
         result = part + result
     return result
@@ -1063,12 +1048,12 @@ def DecodeDataDecimal(items, PreProcessFunction, PostProcessFunction):
             for byte in decimals:
                 if byte < 0x30 or byte > 0x39:
                     dBytes[byte] = dBytes.get(byte, 0) + 1
-            if len(dBytes) > 0:
+            if dBytes:
                 # take the most frequent non-digit character as separator
                 separator = bytes([sorted(dBytes.items(), key=operator.itemgetter(1), reverse=True)[0][0]])
                 for decimalstring in re.findall((br'(?:[0123456789]{1,3}\x%02x' % separator[0]) + br')+[0123456789]{1,3}', decimals):
                     try:
-                        decoded = bytes([int(decimal) for decimal in decimalstring.split(separator)])
+                        decoded = bytes(int(decimal) for decimal in decimalstring.split(separator))
                         decoded = PostProcessFunction(decoded)
                         yield (item, decimalstring, decoded)
                     except:
@@ -1093,7 +1078,7 @@ def NETBIOSDecode(netbios):
         ord(b'O'): ord(b'E'),
         ord(b'P'): ord(b'F'),
     }
-    return binascii.a2b_hex(bytes([dTranslate[char] for char in netbios]))
+    return binascii.a2b_hex(bytes(dTranslate[char] for char in netbios))
 
 def DecodeDataNETBIOS(items, PreProcessFunction, PostProcessFunction):
     for item in items:
@@ -1164,23 +1149,18 @@ def LoadDecoders(decoders, decoderdir, verbose):
     if decoders == '':
         return
 
-    if decoderdir == '':
-        scriptPath = os.path.dirname(sys.argv[0])
-    else:
-        scriptPath = decoderdir
-
+    scriptPath = os.path.dirname(sys.argv[0]) if decoderdir == '' else decoderdir
     for decoder in sum(map(ProcessAt, decoders.split(',')), []):
         try:
             if not decoder.lower().endswith('.py'):
                 decoder += '.py'
-            if os.path.dirname(decoder) == '':
-                if not os.path.exists(decoder):
-                    scriptDecoder = os.path.join(scriptPath, decoder)
-                    if os.path.exists(scriptDecoder):
-                        decoder = scriptDecoder
+            if os.path.dirname(decoder) == '' and not os.path.exists(decoder):
+                scriptDecoder = os.path.join(scriptPath, decoder)
+                if os.path.exists(scriptDecoder):
+                    decoder = scriptDecoder
             exec(open(decoder, 'r').read(), globals(), globals())
         except Exception as e:
-            print('Error loading decoder: %s' % decoder)
+            print(f'Error loading decoder: {decoder}')
             if verbose:
                 raise e
 
@@ -1209,21 +1189,17 @@ def DecodeFunction(decoders, options, stream):
 
 def PrintWarningSelection(select, selectionCounter):
     if select != '' and selectionCounter == 0:
-        print('Warning: no decoding was selected with expression %s' % select)
+        print(f'Warning: no decoding was selected with expression {select}')
 
 def L4(data):
     modulus = len(data) % 4
-    if modulus == 0:
-        return data
-    else:
-        return data[:-modulus]
+    return data if modulus == 0 else data[:-modulus]
 
 def AvailableEncodings():
     global dEncodings
 
     result = ['Available encodings (use "all" to try all encodings):']
-    for key, value in dEncodings.items():
-        result.append(' %s -> %s' % (key, value[0]))
+    result.extend(f' {key} -> {value[0]}' for key, value in dEncodings.items())
     return result
 
 def CheckJSON(stringJSON):
@@ -1236,34 +1212,34 @@ def CheckJSON(stringJSON):
     if not isinstance(object, dict):
         print('Error JSON is not a dictionary')
         return None
-    if not 'version' in object:
+    if 'version' not in object:
         print('Error JSON dictionary has no version')
         return None
     if object['version'] != 2:
         print('Error JSON dictionary has wrong version')
         return None
-    if not 'id' in object:
+    if 'id' not in object:
         print('Error JSON dictionary has no id')
         return None
     if object['id'] != 'didierstevens.com':
         print('Error JSON dictionary has wrong id')
         return None
-    if not 'type' in object:
+    if 'type' not in object:
         print('Error JSON dictionary has no type')
         return None
     if object['type'] != 'content':
         print('Error JSON dictionary has wrong type')
         return None
-    if not 'fields' in object:
+    if 'fields' not in object:
         print('Error JSON dictionary has no fields')
         return None
-    if not 'name' in object['fields']:
+    if 'name' not in object['fields']:
         print('Error JSON dictionary has no name field')
         return None
-    if not 'content' in object['fields']:
+    if 'content' not in object['fields']:
         print('Error JSON dictionary has no content field')
         return None
-    if not 'items' in object:
+    if 'items' not in object:
         print('Error JSON dictionary has no items')
         return None
     for item in object['items']:
@@ -1271,14 +1247,11 @@ def CheckJSON(stringJSON):
     return object['items']
 
 def PrefixIfNeeded(string, prefix=' '):
-    if string == '':
-        return string
-    else:
-        return prefix + string
+    return string if string == '' else prefix + string
 
 def ProduceJSONName(item):
     name = item['name']
-    if name == None:
+    if name is None:
         return ''
     elif isinstance(name, str):
         return name

@@ -57,10 +57,7 @@ Result: MsgBox "Hello"
 
 #Convert 2 Bytes If Python 3
 def C2BIP3(string):
-    if sys.version_info[0] > 2:
-        return bytes([ord(x) for x in string])
-    else:
-        return string
+    return bytes(ord(x) for x in string) if sys.version_info[0] > 2 else string
 
 def File2String(filename):
     try:
@@ -110,7 +107,7 @@ def FixPipe():
 #Fix for http://bugs.python.org/issue11395
 def StdoutWriteChunked(data):
     while data != '':
-        sys.stdout.write(data[0:10000])
+        sys.stdout.write(data[:10000])
         sys.stdout.flush()
         data = data[10000:]
 

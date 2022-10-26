@@ -83,10 +83,7 @@ Use option -o to write the output to a file.
 
 def File2Strings(filename):
     try:
-        if filename == '':
-            f = sys.stdin
-        else:
-            f = open(filename, 'r')
+        f = sys.stdin if filename == '' else open(filename, 'r')
     except:
         return None
     try:
@@ -122,14 +119,12 @@ async def GethostbynameAsync(oResolver, name):
 
 def ParseOptionNameservers(nameservers):
     result = nameservers.split(',')
-    if result == ['']:
-        return None
-    return result
+    return None if result == [''] else result
 
 def GetHostByAddress(filename, oOutput, options):
     ipv4s = File2Strings(filename)
-    if ipv4s == None:
-        print('Error reading file %s' % filename)
+    if ipv4s is None:
+        print(f'Error reading file {filename}')
         return
 
     loop = asyncio.get_event_loop()
@@ -140,9 +135,9 @@ def GetHostByAddress(filename, oOutput, options):
         result = loop.run_until_complete(queue)
         for resolve in result:
             if isinstance(resolve[1], pycares.ares_host_result):
-                oOutput.Line('%s,1,%s' % (resolve[0], resolve[1].name))
+                oOutput.Line(f'{resolve[0]},1,{resolve[1].name}')
             elif isinstance(resolve[1], aiodns.error.DNSError):
-                oOutput.Line('%s,0,%s' % (resolve[0], resolve[1].args[1]))
+                oOutput.Line(f'{resolve[0]},0,{resolve[1].args[1]}')
             else:
                 print(resolve)
                 raise Exception('Unknown')
@@ -150,8 +145,8 @@ def GetHostByAddress(filename, oOutput, options):
 
 def GetHostByName(filename, oOutput, options):
     hostnames = File2Strings(filename)
-    if hostnames == None:
-        print('Error reading file %s' % filename)
+    if hostnames is None:
+        print(f'Error reading file {filename}')
         return
 
     if options.transform != '':
@@ -165,9 +160,9 @@ def GetHostByName(filename, oOutput, options):
         result = loop.run_until_complete(queue)
         for resolve in result:
             if isinstance(resolve[1], pycares.ares_host_result):
-                oOutput.Line('%s,1,%s' % (resolve[0], ';'.join(resolve[1].addresses)))
+                oOutput.Line(f"{resolve[0]},1,{';'.join(resolve[1].addresses)}")
             elif isinstance(resolve[1], aiodns.error.DNSError):
-                oOutput.Line('%s,0,%s' % (resolve[0], resolve[1].args[1]))
+                oOutput.Line(f'{resolve[0]},0,{resolve[1].args[1]}')
             else:
                 print(resolve)
                 raise Exception('Unknown')
@@ -184,9 +179,9 @@ def CheckArgumentsAndOptions(oParser, args, options, acceptedCommands):
         return True
 
     command = args[0]
-    if not command in acceptedCommands:
-        print('unknown command: %s' % command)
-        print('accepted commands: %s' % ','.join(acceptedCommands))
+    if command not in acceptedCommands:
+        print(f'unknown command: {command}')
+        print(f"accepted commands: {','.join(acceptedCommands)}")
         return True
 
     return False
@@ -204,22 +199,21 @@ def ParseOptionEncodingSub2(encoding):
 
 def ParseOptionEncodingSub(entry):
     if not entry.startswith('i=') and not entry.startswith('o='):
-        entry = 'i=' + entry
+        entry = f'i={entry}'
     stream, encoding = entry.split('=', 1)
     encodingvalue, errorsvalue = ParseOptionEncodingSub2(encoding)
     return stream, encodingvalue, errorsvalue
 
 def ParseOptionEncoding(streamId, encoding):
-    dStreamsPresent = {'i': False, 'o': False}
     dStreams = {'i': ['utf8', 'surrogateescape'], 'o': ['utf8', 'surrogateescape']}
     if encoding != '':
+        dStreamsPresent = {'i': False, 'o': False}
         for entry in encoding.split(','):
             stream, encodingvalue, errorsvalue = ParseOptionEncodingSub(entry)
             if dStreamsPresent[stream]:
-                raise Exception('Encoding option error: %s' % encoding)
-            else:
-                dStreamsPresent[stream] = True
-                dStreams[stream] = [encodingvalue, errorsvalue]
+                raise Exception(f'Encoding option error: {encoding}')
+            dStreamsPresent[stream] = True
+            dStreams[stream] = [encodingvalue, errorsvalue]
     return dStreams[streamId]
 
 class cOutput():
@@ -253,20 +247,18 @@ class cOutput():
                 switches = self.filenameOption[1:position]
                 self.filename = self.filenameOption[position + 1:]
                 for switch in switches:
-                    if switch == 's':
-                        self.separateFiles = True
+                    if switch == 'l':
+                        continue
+                    if switch == 'c':
+                        self.console = True
+                    elif switch == 'g':
+                        extra = f'{self.filename}-' if self.filename != '' else ''
+                        self.filename = f'{os.path.splitext(os.path.basename(sys.argv[0]))[0]}-{extra}{self.FormatTime()}.txt'
+
                     elif switch == 'p':
                         self.progress = True
-                    elif switch == 'c':
-                        self.console = True
-                    elif switch == 'l':
-                        pass
-                    elif switch == 'g':
-                        if self.filename != '':
-                            extra = self.filename + '-'
-                        else:
-                            extra = ''
-                        self.filename = '%s-%s%s.txt' % (os.path.splitext(os.path.basename(sys.argv[0]))[0], extra, self.FormatTime())
+                    elif switch == 's':
+                        self.separateFiles = True
                     else:
                         return False
                 return True
@@ -274,24 +266,24 @@ class cOutput():
 
     @staticmethod
     def FormatTime(epoch=None):
-        if epoch == None:
+        if epoch is None:
             epoch = time.time()
-        return '%04d%02d%02d-%02d%02d%02d' % time.localtime(epoch)[0:6]
+        return '%04d%02d%02d-%02d%02d%02d' % time.localtime(epoch)[:6]
 
     def RootUnique(self, root):
-        if not root in self.rootFilenames:
+        if root not in self.rootFilenames:
             self.rootFilenames[root] = None
             return root
         iter = 1
         while True:
             newroot = '%s_%04d' % (root, iter)
-            if not newroot in self.rootFilenames:
+            if newroot not in self.rootFilenames:
                 self.rootFilenames[newroot] = None
                 return newroot
             iter += 1
 
     def Line(self, line, eol='\n'):
-        if self.fOut == None or self.console:
+        if self.fOut is None or self.console:
             try:
                 print(line, end=eol)
             except UnicodeEncodeError:
@@ -303,7 +295,7 @@ class cOutput():
             self.fOut.flush()
 
     def LineTimestamped(self, line):
-        self.Line('%s: %s' % (self.FormatTime(), line))
+        self.Line(f'{self.FormatTime()}: {line}')
 
     def Filename(self, filename, index, total):
         self.separateFilename = filename
@@ -337,9 +329,7 @@ class cOutput():
             self.fOut = None
 
 def InstantiateCOutput(options):
-    filenameOption = None
-    if options.output != '':
-        filenameOption = options.output
+    filenameOption = options.output if options.output != '' else None
     return cOutput(filenameOption)
 
 def Main():
@@ -352,7 +342,13 @@ Source code put in the public domain by Didier Stevens, no Copyright
 Use at your own risk
 https://DidierStevens.com''' % ','.join(acceptedCommands)
 
-    oParser = optparse.OptionParser(usage='usage: %prog [options] command file\n' + __description__ + moredesc, version='%prog ' + __version__)
+    oParser = optparse.OptionParser(
+        usage='usage: %prog [options] command file\n'
+        + __description__
+        + moredesc,
+        version=f'%prog {__version__}',
+    )
+
     oParser.add_option('-m', '--man', action='store_true', default=False, help='Print manual')
     oParser.add_option('-o', '--output', type=str, default='', help='Output to file (# supported)')
     oParser.add_option('-s', '--nameservers', type=str, default='', help='List of nameservers (,-separated)')

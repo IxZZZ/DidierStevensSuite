@@ -83,10 +83,7 @@ Llkj ml s wgtvxl qgjwtyi!
 
 #Convert 2 Bytes If Python 3
 def C2BIP3(string):
-    if sys.version_info[0] > 2:
-        return bytes([ord(x) for x in string])
-    else:
-        return string
+    return bytes(ord(x) for x in string) if sys.version_info[0] > 2 else string
 
 def File2String(filename):
     try:
@@ -135,7 +132,7 @@ def IfWIN32SetBinary(io):
 #Fix for http://bugs.python.org/issue11395
 def StdoutWriteChunked(data):
     while data != '':
-        sys.stdout.write(data[0:10000])
+        sys.stdout.write(data[:10000])
         try:
             sys.stdout.flush()
         except IOError:
@@ -143,10 +140,7 @@ def StdoutWriteChunked(data):
         data = data[10000:]
 
 def ReprIfNeeded(data):
-    if "'" + data + "'" == repr(data):
-        return data
-    else:
-        return repr(data)
+    return data if "'" + data + "'" == repr(data) else repr(data)
 
 class cPrintSeparatingLine():
     def __init__(self):
@@ -162,17 +156,14 @@ def XORData(data, key):
     return ''.join([chr(ord(data[i]) ^ ord(key[i % len(key)])) for i in range(len(data))])
 
 def SubtractData(data, key):
-    return ''.join([c for c in data if not c in key])
+    return ''.join([c for c in data if c not in key])
 
 def VigenereData(data, key, decode, offset):
     result = ''
     iter = 0
     for c in data:
         if c.isalpha():
-            if c.islower():
-                caseOffset = ord('a')
-            else:
-                caseOffset = ord('A')
+            caseOffset = ord('a') if c.islower() else ord('A')
             i = ord(c) - caseOffset
             keyindex = ord(key[iter % len(key)].lower()) - ord('a') + offset
             if decode:
@@ -192,10 +183,7 @@ def ROTData(data, decode, offset):
         offset = 26 - offset
     for c in data:
         if c.isalpha():
-            if c.islower():
-                caseOffset = ord('a')
-            else:
-                caseOffset = ord('A')
+            caseOffset = ord('a') if c.islower() else ord('A')
             i = ord(c) - caseOffset
             i = (i + offset) % 26
             result += chr(i + caseOffset)
@@ -204,17 +192,17 @@ def ROTData(data, decode, offset):
     return result            
     
 def CipherTool(operation, filenameCiphertext, filenameKey, options):
-    if filenameKey == None and operation != 'rot':
+    if filenameKey is None and operation != 'rot':
         print('Missing key')
         return
     elif filenameKey != None:
         key = File2StringHash(filenameKey)
-        if key == None:
-            print('Error reading: %s' % filenameKey)
+        if key is None:
+            print(f'Error reading: {filenameKey}')
             return
     ciphertext = File2StringHash(filenameCiphertext)
-    if ciphertext == None:
-        print('Error reading: %s' % filenameCiphertext)
+    if ciphertext is None:
+        print(f'Error reading: {filenameCiphertext}')
         return
 
     if operation == 'sub':
@@ -226,7 +214,7 @@ def CipherTool(operation, filenameCiphertext, filenameKey, options):
     elif operation == 'rot':
         data = ROTData(ciphertext, options.decode, options.offset)
     else:
-        print('Unknown operation: %s' % operation)
+        print(f'Unknown operation: {operation}')
         return
 
     IfWIN32SetBinary(sys.stdout)
@@ -238,7 +226,13 @@ Source code put in the public domain by Didier Stevens, no Copyright
 Use at your own risk
 https://DidierStevens.com'''
 
-    oParser = optparse.OptionParser(usage='usage: %prog [options] operation filename-ciphertext [filename-key]\n' + __description__ + moredesc, version='%prog ' + __version__)
+    oParser = optparse.OptionParser(
+        usage='usage: %prog [options] operation filename-ciphertext [filename-key]\n'
+        + __description__
+        + moredesc,
+        version=f'%prog {__version__}',
+    )
+
     oParser.add_option('-m', '--man', action='store_true', default=False, help='Print manual')
     oParser.add_option('-d', '--decode', action='store_true', default=False, help='Decode operation (encode is default)')
     oParser.add_option('-o', '--offset', type=int, default=0, help='Offset (by default 13 for rot, 0 for vig)')
@@ -249,7 +243,7 @@ https://DidierStevens.com'''
         PrintManual()
         return
 
-    if len(args) != 2 and len(args) != 3:
+    if len(args) not in [2, 3]:
         oParser.print_help()
         print('')
         print('  Source code put in the public domain by Didier Stevens, no Copyright')

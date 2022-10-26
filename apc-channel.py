@@ -39,11 +39,10 @@ class cChannel:
                 self.remainingChannels = self.channels
 
     def Channel(self):
-        if self.channels == []:
-            self.channel = self.counter + self.minimum
-            return self.channel
-        else:
+        if self.channels != []:
             return self.remainingChannels[0]
+        self.channel = self.counter + self.minimum
+        return self.channel
 
 def Main():
     """Create a VBScript containing an embedded (executable) file

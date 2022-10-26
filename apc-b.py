@@ -41,10 +41,7 @@ AIRPCAP_ADAPTER = '\\\\.\\airpcap00'
 NOMAP_SUFFIX = '_nomap'
 
 def chomp(line):
-    if len(line) > 0 and line[-1] == '\n':
-        return line[:-1]
-    else:
-        return line
+    return line[:-1] if len(line) > 0 and line[-1] == '\n' else line
 
 def file2strings(filename):
     strings = []
@@ -66,7 +63,7 @@ class cBeaconFrame:
     def __init__(self, ESSID, channel, BSSID=None):
         self.ESSID = ESSID
         self.channel = channel
-        if BSSID == None:
+        if BSSID is None:
             self.source_address = [0x00, 0x01, 0x02, 0x03, 0x04, random.randint(0, 255)]
             self.bssid = [0x00, 0x01, 0x02, 0x03, 0x04, random.randint(0, 255)]
         else:
@@ -149,7 +146,10 @@ class cChannel:
         if self.step == 0 and self.AirpcapChannelSet:
             return
         if ctypes.cdll.airpcap.AirpcapSetDeviceChannel(self.hAPC, self.Channel()) == 0:
-            print('Error AirpcapSetDeviceChannel %s' % ctypes.cdll.airpcap.AirpcapGetLastError(self.hAPC))
+            print(
+                f'Error AirpcapSetDeviceChannel {ctypes.cdll.airpcap.AirpcapGetLastError(self.hAPC)}'
+            )
+
             ctypes.cdll.airpcap.AirpcapClose(self.hAPC)
             return
         self.AirpcapChannelSet = True
@@ -167,7 +167,7 @@ def ParsePacketBeacon(channel, raw_packet):
     """
 
     fmt_ppi = 'BBHL'
-    PpiPacketHeader = struct.unpack(fmt_ppi, raw_packet[0:struct.calcsize(fmt_ppi)])
+    PpiPacketHeader = struct.unpack(fmt_ppi, raw_packet[:struct.calcsize(fmt_ppi)])
     if (CheckFCS(raw_packet[PpiPacketHeader[2]:])):
         frame_control = struct.unpack('H', raw_packet[PpiPacketHeader[2]:PpiPacketHeader[2]+2])[0]
         if frame_control & 0xf6 == 0x80:
@@ -175,10 +175,10 @@ def ParsePacketBeacon(channel, raw_packet):
             probe_header = struct.unpack(fmt_ph, raw_packet[PpiPacketHeader[2]:PpiPacketHeader[2]+struct.calcsize(fmt_ph)])
             parameters = raw_packet[PpiPacketHeader[2]+struct.calcsize(fmt_ph)+12:]
             fmt_prm = 'BB'
-            parameter = struct.unpack(fmt_prm, parameters[0:struct.calcsize(fmt_prm)])
+            parameter = struct.unpack(fmt_prm, parameters[:struct.calcsize(fmt_prm)])
             if parameter[0] == 0 and parameter[1] > 0 and parameter[1] < 33:
                 eth = ''
-                for i in range(0, 6):
+                for i in range(6):
                     eth = eth + '%02X' % ord(probe_header[3][i])
                 return (eth, parameters[2:2+parameter[1]], channel)
 
@@ -189,13 +189,16 @@ def Listen(listen, interval):
     hAPC = ctypes.cdll.airpcap.AirpcapOpen(ca.raw, ce)
 
     if hAPC == 0:
-        print('Error opening adapter: %s' % repr(ce.raw))
+        print(f'Error opening adapter: {repr(ce.raw)}')
         return None
 
     ctypes.cdll.airpcap.AirpcapTurnLedOff(hAPC, 0)
 
     if ctypes.cdll.airpcap.AirpcapSetLinkType(hAPC, AIRPCAP_LT_802_11_PLUS_PPI) == 0:
-        print('Error AirpcapSetLinkType %s' % ctypes.cdll.airpcap.AirpcapGetLastError(hAPC))
+        print(
+            f'Error AirpcapSetLinkType {ctypes.cdll.airpcap.AirpcapGetLastError(hAPC)}'
+        )
+
         ctypes.cdll.airpcap.AirpcapClose(hAPC)
         return None
 
@@ -205,7 +208,10 @@ def Listen(listen, interval):
     hRead = ctypes.c_long(0)
 
     if ctypes.cdll.airpcap.AirpcapGetReadEvent(hAPC, ctypes.pointer(hRead)) == 0:
-        print('Error AirpcapGetReadEvent %s' % ctypes.cdll.airpcap.AirpcapGetLastError(hAPC))
+        print(
+            f'Error AirpcapGetReadEvent {ctypes.cdll.airpcap.AirpcapGetLastError(hAPC)}'
+        )
+
         ctypes.cdll.airpcap.AirpcapClose(hAPC)
         return None
 
@@ -221,7 +227,7 @@ def Listen(listen, interval):
             # read captures and store in captures list
             captureChannel = oChannel.Channel()
             if ctypes.cdll.airpcap.AirpcapRead(hAPC, c_PacketBuffer, AIRPCAP_READ_BUFFER_SIZE, ctypes.pointer(BytesReceived)) == 0:
-                print('Error AirpcapRead %s' % ctypes.cdll.airpcap.AirpcapGetLastError(hAPC))
+                print(f'Error AirpcapRead {ctypes.cdll.airpcap.AirpcapGetLastError(hAPC)}')
                 ctypes.cdll.airpcap.AirpcapClose(hAPC)
                 return None
             captures = []
@@ -231,7 +237,7 @@ def Listen(listen, interval):
                     bpf_header = struct.unpack('LLLLH', c_PacketBuffer.raw[index:index+18])
                     captures.append([captureChannel, bpf_header, c_PacketBuffer.raw[index+bpf_header[4]:index+bpf_header[4]+bpf_header[2]]])
                     # calculate index next capture
-                    index = index + bpf_header[4]
+                    index += bpf_header[4]
                     if bpf_header[2] % 4 == 0:
                         index = index + bpf_header[2]
                     else:
@@ -239,9 +245,8 @@ def Listen(listen, interval):
 
             # parse captures
             for capture in captures:
-                beacondata = ParsePacketBeacon(capture[0], capture[2])
-                if beacondata:
-                    if not beacondata[0] in dESSIDs:
+                if beacondata := ParsePacketBeacon(capture[0], capture[2]):
+                    if beacondata[0] not in dESSIDs:
                         print(' \'%s\': %s channel %d' % (beacondata[1], beacondata[0], beacondata[2]))
                         dESSIDs[beacondata[0]] = beacondata
 
@@ -253,10 +258,12 @@ def Listen(listen, interval):
     except KeyboardInterrupt:
         print('Interrupted by user')
 
-    result = []
-    for BSSID, values in dESSIDs.items():
-        if not values[1].endswith(NOMAP_SUFFIX) and len(values[1] + NOMAP_SUFFIX) <= 32:
-            result.append((values[1] + NOMAP_SUFFIX, values[0], values[2]))
+    result = [
+        (values[1] + NOMAP_SUFFIX, values[0], values[2])
+        for values in dESSIDs.values()
+        if not values[1].endswith(NOMAP_SUFFIX)
+        and len(values[1] + NOMAP_SUFFIX) <= 32
+    ]
 
     ctypes.cdll.airpcap.AirpcapClose(hAPC)
 
@@ -266,7 +273,10 @@ def Main():
     """Tool to send beacon frames
     """
 
-    oParser = optparse.OptionParser(usage='usage: %prog [options]', version='%prog ' + __version__)
+    oParser = optparse.OptionParser(
+        usage='usage: %prog [options]', version=f'%prog {__version__}'
+    )
+
     oParser.add_option('-f', '--file', help='file with beacon ESSIDs')
     oParser.add_option('-e', '--essid', default='default', help='beacon ESSID')
     oParser.add_option('-c', '--channel', type=int, default=1, help='beacon channel')
@@ -279,7 +289,7 @@ def Main():
     if len(args) != 0:
         oParser.print_help()
         print('')
-        print('  %s' % __description__)
+        print(f'  {__description__}')
         print('  Source code put in the public domain by Didier Stevens, no Copyright')
         print('  Use at your own risk')
         print('  https://DidierStevens.com')
@@ -287,7 +297,7 @@ def Main():
     else:
         if options.nomap:
             listenResult = Listen(options.listen, options.interval)
-            if listenResult == None or listenResult == []:
+            if listenResult is None or listenResult == []:
                 return
 
         ca = ctypes.create_string_buffer(AIRPCAP_ADAPTER)
@@ -296,24 +306,27 @@ def Main():
         hAPC = ctypes.cdll.airpcap.AirpcapOpen(ca.raw, ce)
 
         if hAPC == 0:
-            print('Error opening adapter: %s' % repr(ce.raw))
+            print(f'Error opening adapter: {repr(ce.raw)}')
             return
 
         ctypes.cdll.airpcap.AirpcapTurnLedOff(hAPC, 0)
 
         if ctypes.cdll.airpcap.AirpcapSetLinkType(hAPC, AIRPCAP_LT_802_11) == 0:
-            print('Error AirpcapSetLinkType %s' % ctypes.cdll.airpcap.AirpcapGetLastError(hAPC))
+            print(
+                f'Error AirpcapSetLinkType {ctypes.cdll.airpcap.AirpcapGetLastError(hAPC)}'
+            )
+
             ctypes.cdll.airpcap.AirpcapClose(hAPC)
             return
 
         try:
             if options.nomap:
                 beacons = [cBeaconFrame(beacon[0], beacon[2], beacon[1]) for beacon in listenResult]
-            elif options.file == None:
+            elif options.file is None:
                 beacons = [cBeaconFrame(options.essid, options.channel)]
             else:
                 ESSIDs = file2strings(options.file)
-                if ESSIDs == None:
+                if ESSIDs is None:
                     print('Error reading file', options.file)
                     ctypes.cdll.airpcap.AirpcapClose(hAPC)
                     return

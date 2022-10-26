@@ -44,9 +44,8 @@ class MyParser(sgmllib.SGMLParser):
         "Process a </script> tag."
 
         self.inSCRIPT = 0
-        fScript = open("script.%d.%s" % (self.countScripts, self.scriptingLanguage), "w")
-        fScript.write(self.SCRIPTdata)
-        fScript.close()
+        with open("script.%d.%s" % (self.countScripts, self.scriptingLanguage), "w") as fScript:
+            fScript.write(self.SCRIPTdata)
 
     def handle_data(self, s):
         "Process data between <script> tags"

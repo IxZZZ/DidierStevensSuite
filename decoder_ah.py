@@ -33,7 +33,13 @@ class cAmpersandHexDecoder(cDecoderParent):
 
     def Decode(self):
         if sys.version_info[0] > 2:
-            decoded = bytes([int(s[2:], 16) for s in re.compile(b'&H[0-9a-f]{2}', re.IGNORECASE).findall(self.stream)])
+            decoded = bytes(
+                int(s[2:], 16)
+                for s in re.compile(b'&H[0-9a-f]{2}', re.IGNORECASE).findall(
+                    self.stream
+                )
+            )
+
         else:
             decoded = ''.join([chr(int(s[2:], 16)) for s in re.compile('&H[0-9a-f]{2}', re.IGNORECASE).findall(self.stream)])
         self.name = '&H decoder'

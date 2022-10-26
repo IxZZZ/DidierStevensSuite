@@ -53,15 +53,11 @@ import struct
 import codecs
 if sys.version_info[0] >= 3:
     from io import BytesIO as DataIO
-else:
-    from cStringIO import StringIO as DataIO
-if sys.version_info[0] >= 3:
     from io import StringIO
-else:
-    from cStringIO import StringIO
-if sys.version_info[0] >= 3:
     import urllib.request as urllib23
 else:
+    from cStringIO import StringIO as DataIO
+    from cStringIO import StringIO
     import urllib2 as urllib23
 
 MALWARE_PASSWORD = 'infected'
@@ -185,10 +181,7 @@ This Python script was developed with Python 2.7 and tested with Python 2.7 and 
 
 #Convert 2 Bytes If Python 3
 def C2BIP3(string):
-    if sys.version_info[0] > 2:
-        return bytes([ord(x) for x in string])
-    else:
-        return string
+    return bytes(ord(x) for x in string) if sys.version_info[0] > 2 else string
 
 def IfWIN32SetBinary(io):
     if sys.platform == 'win32':
@@ -197,17 +190,11 @@ def IfWIN32SetBinary(io):
 
 # CIC: Call If Callable
 def CIC(expression):
-    if callable(expression):
-        return expression()
-    else:
-        return expression
+    return expression() if callable(expression) else expression
 
 # IFF: IF Function
 def IFF(expression, valueTrue, valueFalse):
-    if expression:
-        return CIC(valueTrue)
-    else:
-        return CIC(valueFalse)
+    return CIC(valueTrue) if expression else CIC(valueFalse)
 
 class cDump():
     def __init__(self, data, prefix='', offset=0, dumplinelength=16):
@@ -233,7 +220,7 @@ class cDump():
         countSpaces = 3 * (self.dumplinelength - len(asciiDump))
         if len(asciiDump) <= self.dumplinelength / 2:
             countSpaces += 1
-        return hexDump + '  ' + (' ' * countSpaces) + asciiDump
+        return f'{hexDump}  ' + ' ' * countSpaces + asciiDump
 
     def HexAsciiDump(self, rle=False):
         oDumpStream = self.cDumpStream(self.prefix)
@@ -291,10 +278,7 @@ class cDump():
 
     @staticmethod
     def C2IIP2(data):
-        if sys.version_info[0] > 2:
-            return data
-        else:
-            return ord(data)
+        return data if sys.version_info[0] > 2 else ord(data)
 
 def HexDump(data):
     return cDump(data, dumplinelength=dumplinelength).HexDump()
@@ -311,10 +295,7 @@ CUTTERM_FIND = 2
 CUTTERM_LENGTH = 3
 
 def Replace(string, dReplacements):
-    if string in dReplacements:
-        return dReplacements[string]
-    else:
-        return string
+    return dReplacements[string] if string in dReplacements else string
 
 def ParseInteger(argument):
     sign = 1
@@ -332,48 +313,63 @@ def ParseCutTerm(argument):
     if argument == '':
         return CUTTERM_NOTHING, None, ''
     oMatch = re.match(r'\-?0x([0-9a-f]+)', argument, re.I)
-    if oMatch == None:
+    if oMatch is None:
         oMatch = re.match(r'\-?(\d+)', argument)
     else:
-        value = int(oMatch.group(1), 16)
+        value = int(oMatch[1], 16)
         if argument.startswith('-'):
             value = -value
-        return CUTTERM_POSITION, value, argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return CUTTERM_POSITION, value, argument[len(oMatch[0]):]
+    if oMatch is None:
         oMatch = re.match(r'\[([0-9a-f]+)\](\d+)?([+-](?:0x[0-9a-f]+|\d+))?', argument, re.I)
     else:
-        value = int(oMatch.group(1))
+        value = int(oMatch[1])
         if argument.startswith('-'):
             value = -value
-        return CUTTERM_POSITION, value, argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return CUTTERM_POSITION, value, argument[len(oMatch[0]):]
+    if oMatch is None:
         oMatch = re.match(r"\[u?\'(.+?)\'\](\d+)?([+-](?:0x[0-9a-f]+|\d+))?", argument)
+    elif len(oMatch[1]) % 2 == 1:
+        raise Exception("Uneven length hexadecimal string")
     else:
-        if len(oMatch.group(1)) % 2 == 1:
-            raise Exception("Uneven length hexadecimal string")
-        else:
-            return CUTTERM_FIND, (binascii.a2b_hex(oMatch.group(1)), int(Replace(oMatch.group(2), {None: '1'})), ParseInteger(Replace(oMatch.group(3), {None: '0'}))), argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return (
+            CUTTERM_FIND,
+            (
+                binascii.a2b_hex(oMatch[1]),
+                int(Replace(oMatch[2], {None: '1'})),
+                ParseInteger(Replace(oMatch[3], {None: '0'})),
+            ),
+            argument[len(oMatch[0]) :],
+        )
+
+    if oMatch is None:
         return None, None, argument
-    else:
-        if argument.startswith("[u'"):
-            # convert ascii to unicode 16 byte sequence
-            searchtext = oMatch.group(1).decode('unicode_escape').encode('utf16')[2:]
-        else:
-            searchtext = oMatch.group(1)
-        return CUTTERM_FIND, (searchtext, int(Replace(oMatch.group(2), {None: '1'})), ParseInteger(Replace(oMatch.group(3), {None: '0'}))), argument[len(oMatch.group(0)):]
+    searchtext = (
+        oMatch[1].decode('unicode_escape').encode('utf16')[2:]
+        if argument.startswith("[u'")
+        else oMatch[1]
+    )
+
+    return (
+        CUTTERM_FIND,
+        (
+            searchtext,
+            int(Replace(oMatch[2], {None: '1'})),
+            ParseInteger(Replace(oMatch[3], {None: '0'})),
+        ),
+        argument[len(oMatch[0]) :],
+    )
 
 def ParseCutArgument(argument):
     type, value, remainder = ParseCutTerm(argument.strip())
     if type == CUTTERM_NOTHING:
         return CUTTERM_NOTHING, None, CUTTERM_NOTHING, None
-    elif type == None:
-        if remainder.startswith(':'):
-            typeLeft = CUTTERM_NOTHING
-            valueLeft = None
-            remainder = remainder[1:]
-        else:
+    elif type is None:
+        if not remainder.startswith(':'):
             return None, None, None, None
+        typeLeft = CUTTERM_NOTHING
+        valueLeft = None
+        remainder = remainder[1:]
     else:
         typeLeft = type
         valueLeft = value
@@ -388,7 +384,7 @@ def ParseCutArgument(argument):
     type, value, remainder = ParseCutTerm(remainder)
     if type == CUTTERM_POSITION and remainder == 'l':
         return typeLeft, valueLeft, CUTTERM_LENGTH, value
-    elif type == None or remainder != '':
+    elif type is None or remainder != '':
         return None, None, None, None
     elif type == CUTTERM_FIND and value[1] == 0:
         return None, None, None, None
@@ -410,7 +406,7 @@ def CutData(stream, cutArgument):
 
     typeLeft, valueLeft, typeRight, valueRight = ParseCutArgument(cutArgument)
 
-    if typeLeft == None:
+    if typeLeft is None:
         return [stream, None, None]
 
     if typeLeft == CUTTERM_NOTHING:
@@ -454,7 +450,7 @@ def StdoutWriteChunked(data):
             sys.stdout.buffer.write(data)
     else:
         while data != '':
-            sys.stdout.write(data[0:10000])
+            sys.stdout.write(data[:10000])
             try:
                 sys.stdout.flush()
             except IOError:
@@ -468,7 +464,7 @@ def LoremIpsumSentence(minimum, maximum):
     return ' '.join(sample) + '.'
 
 def LoremIpsum(sentences):
-    return ' '.join([LoremIpsumSentence(15, 30) for i in range(sentences)])
+    return ' '.join([LoremIpsumSentence(15, 30) for _ in range(sentences)])
 
 STATE_START = 0
 STATE_IDENTIFIER = 1
@@ -512,17 +508,16 @@ def Tokenize(expression):
                 state = STATE_START
             elif state == STATE_STRING:
                 token += char
+        elif state == STATE_IDENTIFIER:
+            result.append([STATE_IDENTIFIER, token])
+            token = ''
+            state = STATE_START
+            result.append([STATE_SPECIAL_CHAR, char])
+        elif state == STATE_STRING:
+            token += char
         else:
-            if state == STATE_IDENTIFIER:
-                result.append([STATE_IDENTIFIER, token])
-                token = ''
-                state = STATE_START
-                result.append([STATE_SPECIAL_CHAR, char])
-            elif state == STATE_STRING:
-                token += char
-            else:
-                result.append([STATE_SPECIAL_CHAR, char])
-                token = ''
+            result.append([STATE_SPECIAL_CHAR, char])
+            token = ''
     if state == STATE_IDENTIFIER:
         result.append([state, token])
     elif state == STATE_STRING:
@@ -552,7 +547,7 @@ def ParseFunction(tokens):
         return None, tokens
     arguments = []
     while True:
-        if tokens[0][0] != STATE_IDENTIFIER and tokens[0][0] != STATE_STRING:
+        if tokens[0][0] not in [STATE_IDENTIFIER, STATE_STRING]:
             print('Parsing error')
             return None, tokens
         arguments.append(tokens[0])
@@ -560,10 +555,13 @@ def ParseFunction(tokens):
         if len(tokens) == 0:
             print('Parsing error')
             return None, tokens
-        if tokens[0][0] != STATE_SPECIAL_CHAR or (tokens[0][1] != ',' and tokens[0][1] != ')'):
+        if tokens[0][0] != STATE_SPECIAL_CHAR or tokens[0][1] not in [
+            ',',
+            ')',
+        ]:
             print('Parsing error')
             return None, tokens
-        if tokens[0][0] == STATE_SPECIAL_CHAR and tokens[0][1] == ')':
+        if tokens[0][1] == ')':
             tokens = tokens[1:]
             break
         tokens = tokens[1:]
@@ -585,7 +583,7 @@ def Parse(expression):
     functioncalls = []
     while True:
         functioncall, tokens = ParseFunction(tokens)
-        if functioncall == None:
+        if functioncall is None:
             return None
         functioncalls.append(functioncall)
         if len(tokens) == 0:
@@ -605,17 +603,14 @@ def InterpretInteger(token):
 
 def Hex2Bytes(hexadecimal):
     if len(hexadecimal) % 2 == 1:
-        hexadecimal = '0' + hexadecimal
+        hexadecimal = f'0{hexadecimal}'
     try:
         return binascii.a2b_hex(hexadecimal)
     except:
         return None
 
 def C2IIP2(data):
-    if sys.version_info[0] > 2:
-        return data
-    else:
-        return ord(data)
+    return data if sys.version_info[0] > 2 else ord(data)
 
 def InterpretHexInteger(token):
     if token[0] != STATE_IDENTIFIER:
@@ -623,7 +618,7 @@ def InterpretHexInteger(token):
     if not token[1].startswith('0x'):
         return None
     bytes = Hex2Bytes(token[1][2:])
-    if bytes == None:
+    if bytes is None:
         return None
     integer = 0
     for byte in bytes:
@@ -632,22 +627,17 @@ def InterpretHexInteger(token):
 
 def InterpretNumber(token):
     number = InterpretInteger(token)
-    if number == None:
-        return InterpretHexInteger(token)
-    else:
-        return number
+    return InterpretHexInteger(token) if number is None else number
 
 def InterpretBytes(token):
     if token[0] == STATE_STRING:
         return token[1]
     if token[0] != STATE_IDENTIFIER:
         return None
-    if not token[1].startswith('0x'):
-        return None
-    return Hex2Bytes(token[1][2:])
+    return Hex2Bytes(token[1][2:]) if token[1].startswith('0x') else None
 
 def CheckFunction(functionname, arguments, countarguments, maxcountarguments=None):
-    if maxcountarguments == None:
+    if maxcountarguments is None:
         if countarguments == 0 and len(arguments) != 0:
             print('Error: function %s takes no arguments, %d are given' % (functionname, len(arguments)))
             return True
@@ -657,16 +647,15 @@ def CheckFunction(functionname, arguments, countarguments, maxcountarguments=Non
         if countarguments != len(arguments):
             print('Error: function %s takes %d arguments, %d are given' % (functionname, countarguments, len(arguments)))
             return True
-    else:
-        if len(arguments) < countarguments or len(arguments) > maxcountarguments:
-            print('Error: function %s takes between %d and %d arguments, %d are given' % (functionname, countarguments, maxcountarguments, len(arguments)))
-            return True
+    elif len(arguments) < countarguments or len(arguments) > maxcountarguments:
+        print('Error: function %s takes between %d and %d arguments, %d are given' % (functionname, countarguments, maxcountarguments, len(arguments)))
+        return True
     return False
 
 def CheckNumber(argument, minimum=None, maximum=None):
     number = InterpretNumber(argument)
-    if number == None:
-        print('Error: argument should be a number: %s' % argument[1])
+    if number is None:
+        print(f'Error: argument should be a number: {argument[1]}')
         return None
     if minimum != None and number < minimum:
         print('Error: argument should be minimum %d: %d' % (minimum, number))
@@ -678,7 +667,7 @@ def CheckNumber(argument, minimum=None, maximum=None):
 
 def Interpret(expression):
     functioncalls = Parse(expression)
-    if functioncalls == None:
+    if functioncalls is None:
         return None
     decoded = ''
     for functioncall in functioncalls:
@@ -687,50 +676,49 @@ def Interpret(expression):
             if CheckFunction(functionname, arguments, 2):
                 return None
             number = CheckNumber(arguments[0], minimum=1)
-            if number == None:
+            if number is None:
                 return None
             bytes = InterpretBytes(arguments[1])
-            if bytes == None:
-                print('Error: argument should be a byte sequence: %s' % arguments[1][1])
+            if bytes is None:
+                print(f'Error: argument should be a byte sequence: {arguments[1][1]}')
                 return None
             decoded += number * bytes.decode('latin')
         elif functionname == FUNCTIONNAME_RANDOM:
             if CheckFunction(functionname, arguments, 1):
                 return None
             number = CheckNumber(arguments[0], minimum=1)
-            if number == None:
+            if number is None:
                 return None
-            decoded += ''.join([chr(random.randint(0, 255)) for x in range(number)])
+            decoded += ''.join([chr(random.randint(0, 255)) for _ in range(number)])
         elif functionname == FUNCTIONNAME_LOREMIPSUM:
             if CheckFunction(functionname, arguments, 1):
                 return None
             number = CheckNumber(arguments[0], minimum=1)
-            if number == None:
+            if number is None:
                 return None
             decoded += LoremIpsum(number)
         elif functionname == FUNCTIONNAME_CHR:
             if CheckFunction(functionname, arguments, 1, 2):
                 return None
             number = CheckNumber(arguments[0], minimum=0, maximum=255)
-            if number == None:
+            if number is None:
                 return None
             if len(arguments) == 1:
                 decoded += chr(number)
             else:
                 number2 = CheckNumber(arguments[1], minimum=0, maximum=255)
-                if number2 == None:
+                if number2 is None:
                     return None
                 decoded += ''.join([chr(n) for n in range(number, number2 + 1)])
         else:
-            print('Error: unknown function: %s' % functionname)
+            print(f'Error: unknown function: {functionname}')
             return None
     return decoded
 
 def ParsePackExpression(expression, data):
     try:
         packFormat, pythonExpression = expression.split('#', 1)
-        result = struct.pack(packFormat, eval(pythonExpression))
-        return result
+        return struct.pack(packFormat, eval(pythonExpression))
     except:
         return None
 
@@ -773,10 +761,7 @@ def FilenameCheckHash(filename, literalfilename, data=b''):
         return FCH_FILENAME, filename
     elif filename.startswith('#h#'):
         result = Hex2Bytes(filename[3:].replace(' ', ''))
-        if result == None:
-            return FCH_ERROR, 'hexadecimal'
-        else:
-            return FCH_DATA, result
+        return (FCH_ERROR, 'hexadecimal') if result is None else (FCH_DATA, result)
     elif filename.startswith('#b#'):
         try:
             return FCH_DATA, binascii.a2b_base64(filename[3:])
@@ -784,28 +769,19 @@ def FilenameCheckHash(filename, literalfilename, data=b''):
             return FCH_ERROR, 'base64'
     elif filename.startswith('#e#'):
         result = Interpret(filename[3:])
-        if result == None:
+        if result is None:
             return FCH_ERROR, 'expression'
         else:
             return FCH_DATA, C2BIP3(result)
     elif filename.startswith('#p#'):
         result = ParsePackExpression(filename[3:], data)
-        if result == None:
-            return FCH_ERROR, 'pack'
-        else:
-            return FCH_DATA, result
+        return (FCH_ERROR, 'pack') if result is None else (FCH_DATA, result)
     elif filename.startswith('#u#'):
         result, error = DownloadFile(filename[3:])
-        if result == None:
-            return FCH_ERROR, 'url:' + error
-        else:
-            return FCH_DATA, result
+        return (FCH_ERROR, f'url:{error}') if result is None else (FCH_DATA, result)
     elif filename.startswith('#E#'):
         result = DecodeEscapes(filename[3:])
-        if result == None:
-            return FCH_ERROR, 'escapes'
-        else:
-            return FCH_DATA, C2BIP3(result)
+        return (FCH_ERROR, 'escapes') if result is None else (FCH_DATA, C2BIP3(result))
     elif filename.startswith('#'):
         return FCH_DATA, C2BIP3(filename[1:])
     else:
@@ -822,9 +798,9 @@ class cBinaryFile:
         fch, data = FilenameCheckHash(self.filename, self.literalfilename)
         if fch == FCH_ERROR:
             if data.startswith('url:'):
-                raise Exception('Error %s downloading: %s' % (data.split(':')[1], self.filename[3:]))
+                raise Exception(f"Error {data.split(':')[1]} downloading: {self.filename[3:]}")
             else:
-                raise Exception('Error %s parsing filename: %s' % (data, self.filename))
+                raise Exception(f'Error {data} parsing filename: {self.filename}')
 
         if self.filename == '':
             if sys.platform == 'win32':
@@ -857,10 +833,7 @@ class cBinaryFile:
             fRead = self.fIn.buffer
         except:
             fRead = self.fIn
-        if size == None:
-            return fRead.read()
-        else:
-            return fRead.read(size)
+        return fRead.read() if size is None else fRead.read(size)
 
     def Data(self):
         data = self.read()
@@ -878,31 +851,27 @@ def CutBytes(expression, filename, options):
             result = CutData(data[start:], expression)
             if result[0] == '':
                 break
+            oDump = cDump(result[0], offset=start + result[1], dumplinelength=dumplinelength)
+            if options.hexdump:
+                StdoutWriteChunked(oDump.HexDump() + '\n')
+            elif options.hexdumpnows:
+                StdoutWriteChunked(binascii.b2a_hex(result[0]) + '\n')
+            elif options.base64:
+                StdoutWriteChunked(oDump.Base64Dump())
+            elif options.base64nows:
+                StdoutWriteChunked(oDump.Base64Dump(True) + '\n')
+            elif options.asciidump:
+                StdoutWriteChunked(oDump.HexAsciiDump() + '\n')
+            elif options.asciidumprle:
+                StdoutWriteChunked(oDump.HexAsciiDump(True) + '\n')
+            elif options.jsonoutput:
+                object.append({'id': counter, 'name': '0x%08x' % (start + result[1]), 'content': binascii.b2a_base64(result[0]).strip('\n')})
+                counter += 1
             else:
-                oDump = cDump(result[0], offset=start + result[1], dumplinelength=dumplinelength)
-                if options.hexdump:
-                    StdoutWriteChunked(oDump.HexDump() + '\n')
-                elif options.hexdumpnows:
-                    StdoutWriteChunked(binascii.b2a_hex(result[0]) + '\n')
-                elif options.base64:
-                    StdoutWriteChunked(oDump.Base64Dump())
-                elif options.base64nows:
-                    StdoutWriteChunked(oDump.Base64Dump(True) + '\n')
-                elif options.asciidump:
-                    StdoutWriteChunked(oDump.HexAsciiDump() + '\n')
-                elif options.asciidumprle:
-                    StdoutWriteChunked(oDump.HexAsciiDump(True) + '\n')
-                elif options.jsonoutput:
-                    object.append({'id': counter, 'name': '0x%08x' % (start + result[1]), 'content': binascii.b2a_base64(result[0]).strip('\n')})
-                    counter += 1
-                else:
-                    if start == 0:
-                        IfWIN32SetBinary(sys.stdout)
-                    StdoutWriteChunked(result[0])
-                if options.grep:
-                    start += result[1] + 1
-                else:
-                    start += result[2]
+                if start == 0:
+                    IfWIN32SetBinary(sys.stdout)
+                StdoutWriteChunked(result[0])
+            start += result[1] + 1 if options.grep else result[2]
         if options.jsonoutput:
             print(json.dumps({'version': 2, 'id': 'didierstevens.com', 'type': 'content', 'fields': ['id', 'name', 'content'], 'items': object}))
 
@@ -927,22 +896,27 @@ def CutBytes(expression, filename, options):
 
         if options.prefix != '':
             fch, prefix = FilenameCheckHash(options.prefix, False, data)
-            if fch != FCH_DATA:
-                raise Exception('Error %s parsing prefix: %s' % (prefix, options.prefix))
-            else:
+            if fch == FCH_DATA:
                 data = prefix + data
 
+            else:
+                raise Exception(f'Error {prefix} parsing prefix: {options.prefix}')
         if options.suffix != '':
             fch, suffix = FilenameCheckHash(options.suffix, False, data)
-            if fch != FCH_DATA:
-                raise Exception('Error %s parsing suffix: %s' % (suffix, options.suffix))
-            else:
+            if fch == FCH_DATA:
                 data = data + suffix
 
+            else:
+                raise Exception(f'Error {suffix} parsing suffix: {options.suffix}')
         StdoutWriteChunked(DumpFunction(data))
 
 def Main():
-    oParser = optparse.OptionParser(usage='usage: %prog [options] cut-expression [[#]file]\n' + __description__, version='%prog ' + __version__)
+    oParser = optparse.OptionParser(
+        usage='usage: %prog [options] cut-expression [[#]file]\n'
+        + __description__,
+        version=f'%prog {__version__}',
+    )
+
     oParser.add_option('-m', '--man', action='store_true', default=False, help='Print manual')
     oParser.add_option('-g', '--grep', action='store_true', default=False, help='binary grep')
     oParser.add_option('-G', '--grepno', action='store_true', default=False, help='binary grep non-overlapping')
@@ -974,8 +948,8 @@ def Main():
         print('  https://DidierStevens.com')
         return
 
-    if ParseCutArgument(args[0])[0] == None:
-        print('Error: the cut-expression is invalid: %s' % args[0])
+    if ParseCutArgument(args[0])[0] is None:
+        print(f'Error: the cut-expression is invalid: {args[0]}')
         return
 
     if len(args) == 1:

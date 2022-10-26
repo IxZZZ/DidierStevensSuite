@@ -49,11 +49,9 @@ except ImportError:
     exit(-1)
 if sys.version_info[0] >= 3:
     from io import BytesIO as DataIO
-else:
-    from cStringIO import StringIO as DataIO
-if sys.version_info[0] >= 3:
     from io import StringIO
 else:
+    from cStringIO import StringIO as DataIO
     from cStringIO import StringIO
 
 def PrintManual():
@@ -84,31 +82,19 @@ def PrintError(*args, **kwargs):
 
 #Convert 2 Bytes If Python 3
 def C2BIP3(string):
-    if sys.version_info[0] > 2:
-        return bytes([ord(x) for x in string])
-    else:
-        return string
+    return bytes(ord(x) for x in string) if sys.version_info[0] > 2 else string
 
 #Convert 2 Integer If Python 2
 def C2IIP2(data):
-    if sys.version_info[0] > 2:
-        return data
-    else:
-        return ord(data)
+    return data if sys.version_info[0] > 2 else ord(data)
 
 # CIC: Call If Callable
 def CIC(expression):
-    if callable(expression):
-        return expression()
-    else:
-        return expression
+    return expression() if callable(expression) else expression
 
 # IFF: IF Function
 def IFF(expression, valueTrue, valueFalse):
-    if expression:
-        return CIC(valueTrue)
-    else:
-        return CIC(valueFalse)
+    return CIC(valueTrue) if expression else CIC(valueFalse)
 
 #-BEGINCODE cBinaryFile------------------------------------------------------------------------------
 #import random
@@ -128,7 +114,7 @@ def LoremIpsumSentence(minimum, maximum):
     return ' '.join(sample) + '.'
 
 def LoremIpsum(sentences):
-    return ' '.join([LoremIpsumSentence(15, 30) for i in range(sentences)])
+    return ' '.join([LoremIpsumSentence(15, 30) for _ in range(sentences)])
 
 STATE_START = 0
 STATE_IDENTIFIER = 1
@@ -172,17 +158,16 @@ def Tokenize(expression):
                 state = STATE_START
             elif state == STATE_STRING:
                 token += char
+        elif state == STATE_IDENTIFIER:
+            result.append([STATE_IDENTIFIER, token])
+            token = ''
+            state = STATE_START
+            result.append([STATE_SPECIAL_CHAR, char])
+        elif state == STATE_STRING:
+            token += char
         else:
-            if state == STATE_IDENTIFIER:
-                result.append([STATE_IDENTIFIER, token])
-                token = ''
-                state = STATE_START
-                result.append([STATE_SPECIAL_CHAR, char])
-            elif state == STATE_STRING:
-                token += char
-            else:
-                result.append([STATE_SPECIAL_CHAR, char])
-                token = ''
+            result.append([STATE_SPECIAL_CHAR, char])
+            token = ''
     if state == STATE_IDENTIFIER:
         result.append([state, token])
     elif state == STATE_STRING:
@@ -212,7 +197,7 @@ def ParseFunction(tokens):
         return None, tokens
     arguments = []
     while True:
-        if tokens[0][0] != STATE_IDENTIFIER and tokens[0][0] != STATE_STRING:
+        if tokens[0][0] not in [STATE_IDENTIFIER, STATE_STRING]:
             print('Parsing error')
             return None, tokens
         arguments.append(tokens[0])
@@ -220,10 +205,13 @@ def ParseFunction(tokens):
         if len(tokens) == 0:
             print('Parsing error')
             return None, tokens
-        if tokens[0][0] != STATE_SPECIAL_CHAR or (tokens[0][1] != ',' and tokens[0][1] != ')'):
+        if tokens[0][0] != STATE_SPECIAL_CHAR or tokens[0][1] not in [
+            ',',
+            ')',
+        ]:
             print('Parsing error')
             return None, tokens
-        if tokens[0][0] == STATE_SPECIAL_CHAR and tokens[0][1] == ')':
+        if tokens[0][1] == ')':
             tokens = tokens[1:]
             break
         tokens = tokens[1:]
@@ -245,7 +233,7 @@ def Parse(expression):
     functioncalls = []
     while True:
         functioncall, tokens = ParseFunction(tokens)
-        if functioncall == None:
+        if functioncall is None:
             return None
         functioncalls.append(functioncall)
         if len(tokens) == 0:
@@ -265,7 +253,7 @@ def InterpretInteger(token):
 
 def Hex2Bytes(hexadecimal):
     if len(hexadecimal) % 2 == 1:
-        hexadecimal = '0' + hexadecimal
+        hexadecimal = f'0{hexadecimal}'
     try:
         return binascii.a2b_hex(hexadecimal)
     except:
@@ -277,7 +265,7 @@ def InterpretHexInteger(token):
     if not token[1].startswith('0x'):
         return None
     bytes = Hex2Bytes(token[1][2:])
-    if bytes == None:
+    if bytes is None:
         return None
     integer = 0
     for byte in bytes:
@@ -286,22 +274,17 @@ def InterpretHexInteger(token):
 
 def InterpretNumber(token):
     number = InterpretInteger(token)
-    if number == None:
-        return InterpretHexInteger(token)
-    else:
-        return number
+    return InterpretHexInteger(token) if number is None else number
 
 def InterpretBytes(token):
     if token[0] == STATE_STRING:
         return token[1]
     if token[0] != STATE_IDENTIFIER:
         return None
-    if not token[1].startswith('0x'):
-        return None
-    return Hex2Bytes(token[1][2:])
+    return Hex2Bytes(token[1][2:]) if token[1].startswith('0x') else None
 
 def CheckFunction(functionname, arguments, countarguments, maxcountarguments=None):
-    if maxcountarguments == None:
+    if maxcountarguments is None:
         if countarguments == 0 and len(arguments) != 0:
             print('Error: function %s takes no arguments, %d are given' % (functionname, len(arguments)))
             return True
@@ -311,16 +294,15 @@ def CheckFunction(functionname, arguments, countarguments, maxcountarguments=Non
         if countarguments != len(arguments):
             print('Error: function %s takes %d arguments, %d are given' % (functionname, countarguments, len(arguments)))
             return True
-    else:
-        if len(arguments) < countarguments or len(arguments) > maxcountarguments:
-            print('Error: function %s takes between %d and %d arguments, %d are given' % (functionname, countarguments, maxcountarguments, len(arguments)))
-            return True
+    elif len(arguments) < countarguments or len(arguments) > maxcountarguments:
+        print('Error: function %s takes between %d and %d arguments, %d are given' % (functionname, countarguments, maxcountarguments, len(arguments)))
+        return True
     return False
 
 def CheckNumber(argument, minimum=None, maximum=None):
     number = InterpretNumber(argument)
-    if number == None:
-        print('Error: argument should be a number: %s' % argument[1])
+    if number is None:
+        print(f'Error: argument should be a number: {argument[1]}')
         return None
     if minimum != None and number < minimum:
         print('Error: argument should be minimum %d: %d' % (minimum, number))
@@ -332,7 +314,7 @@ def CheckNumber(argument, minimum=None, maximum=None):
 
 def Interpret(expression):
     functioncalls = Parse(expression)
-    if functioncalls == None:
+    if functioncalls is None:
         return None
     decoded = ''
     for functioncall in functioncalls:
@@ -341,45 +323,45 @@ def Interpret(expression):
             if CheckFunction(functionname, arguments, 2):
                 return None
             number = CheckNumber(arguments[0], minimum=1)
-            if number == None:
+            if number is None:
                 return None
             bytes = InterpretBytes(arguments[1])
-            if bytes == None:
-                print('Error: argument should be a byte sequence: %s' % arguments[1][1])
+            if bytes is None:
+                print(f'Error: argument should be a byte sequence: {arguments[1][1]}')
                 return None
             decoded += number * bytes
         elif functionname == FUNCTIONNAME_RANDOM:
             if CheckFunction(functionname, arguments, 1):
                 return None
             number = CheckNumber(arguments[0], minimum=1)
-            if number == None:
+            if number is None:
                 return None
-            decoded += ''.join([chr(random.randint(0, 255)) for x in range(number)])
+            decoded += ''.join([chr(random.randint(0, 255)) for _ in range(number)])
         elif functionname == FUNCTIONNAME_LOREMIPSUM:
             if CheckFunction(functionname, arguments, 1):
                 return None
             number = CheckNumber(arguments[0], minimum=1)
-            if number == None:
+            if number is None:
                 return None
             decoded += LoremIpsum(number)
         elif functionname == FUNCTIONNAME_CHR:
             if CheckFunction(functionname, arguments, 1, 2):
                 return None
             number = CheckNumber(arguments[0], minimum=0, maximum=255)
-            if number == None:
+            if number is None:
                 return None
             if len(arguments) == 1:
                 decoded += chr(number)
             else:
                 number2 = CheckNumber(arguments[1], minimum=0, maximum=255)
-                if number2 == None:
+                if number2 is None:
                     return None
                 if number < number2:
                     decoded += ''.join([chr(n) for n in range(number, number2 + 1)])
                 else:
                     decoded += ''.join([chr(n) for n in range(number, number2 - 1, -1)])
         else:
-            print('Error: unknown function: %s' % functionname)
+            print(f'Error: unknown function: {functionname}')
             return None
     return decoded
 
@@ -400,10 +382,7 @@ def FilenameCheckHash(filename, literalfilename):
         return FCH_FILENAME, filename
     elif filename.startswith('#h#'):
         result = Hex2Bytes(filename[3:].replace(' ', ''))
-        if result == None:
-            return FCH_ERROR, 'hexadecimal'
-        else:
-            return FCH_DATA, result
+        return (FCH_ERROR, 'hexadecimal') if result is None else (FCH_DATA, result)
     elif filename.startswith('#b#'):
         try:
             return FCH_DATA, binascii.a2b_base64(filename[3:])
@@ -411,23 +390,20 @@ def FilenameCheckHash(filename, literalfilename):
             return FCH_ERROR, 'base64'
     elif filename.startswith('#e#'):
         result = Interpret(filename[3:])
-        if result == None:
+        if result is None:
             return FCH_ERROR, 'expression'
         else:
             return FCH_DATA, C2BIP3(result)
     elif filename.startswith('#p#'):
         result = ParsePackExpression(filename[3:])
-        if result == None:
-            return FCH_ERROR, 'pack'
-        else:
-            return FCH_DATA, result
+        return (FCH_ERROR, 'pack') if result is None else (FCH_DATA, result)
     elif filename.startswith('#'):
         return FCH_DATA, C2BIP3(filename[1:])
     else:
         return FCH_FILENAME, filename
 
 def AnalyzeFileError(filename):
-    PrintError('Error opening file %s' % filename)
+    PrintError(f'Error opening file {filename}')
     PrintError(sys.exc_info()[1])
     try:
         if not os.path.exists(filename):
@@ -451,7 +427,7 @@ class cBinaryFile:
 
         fch, data = FilenameCheckHash(self.filename, self.literalfilename)
         if fch == FCH_ERROR:
-            line = 'Error %s parsing filename: %s' % (data, self.filename)
+            line = f'Error {data} parsing filename: {self.filename}'
             raise Exception(line)
 
         try:
@@ -481,7 +457,7 @@ class cBinaryFile:
             raise
 
     def close(self):
-        if self.fIn != sys.stdin and self.fIn != None:
+        if self.fIn not in [sys.stdin, None]:
             self.fIn.close()
         if self.oZipfile != None:
             self.oZipfile.close()
@@ -491,10 +467,7 @@ class cBinaryFile:
             fRead = self.fIn.buffer
         except:
             fRead = self.fIn
-        if size == None:
-            return fRead.read()
-        else:
-            return fRead.read(size)
+        return fRead.read() if size is None else fRead.read(size)
 
     def Data(self):
         data = self.read()
@@ -505,10 +478,7 @@ class cBinaryFile:
 
 def File2Strings(filename):
     try:
-        if filename == '':
-            f = sys.stdin
-        else:
-            f = open(filename, 'r')
+        f = sys.stdin if filename == '' else open(filename, 'r')
     except:
         return None
     try:
@@ -532,21 +502,17 @@ def File2String(filename):
         f.close()
 
 def ProcessAt(argument):
-    if argument.startswith('@'):
-        strings = File2Strings(argument[1:])
-        if strings == None:
-            raise Exception('Error reading %s' % argument)
-        else:
-            return strings
-    else:
+    if not argument.startswith('@'):
         return [argument]
+    strings = File2Strings(argument[1:])
+    if strings is None:
+        raise Exception(f'Error reading {argument}')
+    else:
+        return strings
 
 def Glob(filename):
     filenames = glob.glob(filename)
-    if len(filenames) == 0:
-        return [filename]
-    else:
-        return filenames
+    return [filename] if len(filenames) == 0 else filenames
 
 class cExpandFilenameArguments():
     def __init__(self, filenames, literalfilenames=False, recursedir=False, checkfilenames=False, expressionprefix=None, flagprefix=None):
@@ -572,8 +538,11 @@ class cExpandFilenameArguments():
                     flag = dirwildcard[len(flagprefix):]
                 else:
                     if dirwildcard.startswith('@'):
-                        for filename in ProcessAt(dirwildcard):
-                            self.filenameexpressionsflags.append([filename, expression, flag])
+                        self.filenameexpressionsflags.extend(
+                            [filename, expression, flag]
+                            for filename in ProcessAt(dirwildcard)
+                        )
+
                     elif os.path.isfile(dirwildcard):
                         self.filenameexpressionsflags.append([dirwildcard, expression, flag])
                     else:
@@ -585,8 +554,11 @@ class cExpandFilenameArguments():
                             if dirname == '':
                                 dirname = '.'
                         for path, dirs, files in os.walk(dirname):
-                            for filename in fnmatch.filter(files, basename):
-                                self.filenameexpressionsflags.append([os.path.join(path, filename), expression, flag])
+                            self.filenameexpressionsflags.extend(
+                                [os.path.join(path, filename), expression, flag]
+                                for filename in fnmatch.filter(files, basename)
+                            )
+
         else:
             for filename in list(collections.OrderedDict.fromkeys(sum(map(self.Glob, sum(map(ProcessAt, filenames), [])), []))):
                 if expressionprefix != None and filename.startswith(expressionprefix):
@@ -595,17 +567,27 @@ class cExpandFilenameArguments():
                     flag = filename[len(flagprefix):]
                 else:
                     self.filenameexpressionsflags.append([filename, expression, flag])
-            self.warning = self.containsUnixShellStyleWildcards and len(self.filenameexpressionsflags) == 0
+            self.warning = (
+                self.containsUnixShellStyleWildcards
+                and not self.filenameexpressionsflags
+            )
+
             if self.warning:
                 self.message = "Your filename argument(s) contain Unix shell-style wildcards, but no files were matched.\nCheck your wildcard patterns or use option literalfilenames if you don't want wildcard pattern matching."
                 return
-        if self.filenameexpressionsflags == [] and (expression != '' or flag != ''):
+        if not self.filenameexpressionsflags and (
+            (expression != '' or flag != '')
+        ):
             self.filenameexpressionsflags = [['', expression, flag]]
         if checkfilenames:
             self.CheckIfFilesAreValid()
 
     def Glob(self, filename):
-        if not ('?' in filename or '*' in filename or ('[' in filename and ']' in filename)):
+        if (
+            '?' not in filename
+            and '*' not in filename
+            and ('[' not in filename or ']' not in filename)
+        ):
             return [filename]
         self.containsUnixShellStyleWildcards = True
         return glob.glob(filename)
@@ -629,15 +611,15 @@ class cExpandFilenameArguments():
             else:
                 valid.append([filename, expression, flag])
         self.filenameexpressionsflags = valid
-        if len(doesnotexist) > 0:
+        if doesnotexist:
             self.warning = True
             self.message += 'The following files do not exist and will be skipped: ' + ' '.join(doesnotexist) + '\n'
-        if len(isnotafile) > 0:
+        if isnotafile:
             self.warning = True
             self.message += 'The following files are not regular files and will be skipped: ' + ' '.join(isnotafile) + '\n'
 
     def Filenames(self):
-        if self.expressionprefix == None:
+        if self.expressionprefix is None:
             return [filename for filename, expression, flag in self.filenameexpressionsflags]
         else:
             return self.filenameexpressionsflags
@@ -652,34 +634,34 @@ def CheckJSON(stringJSON):
     if not isinstance(object, dict):
         print('Error JSON is not a dictionary')
         return None
-    if not 'version' in object:
+    if 'version' not in object:
         print('Error JSON dictionary has no version')
         return None
     if object['version'] != 2:
         print('Error JSON dictionary has wrong version')
         return None
-    if not 'id' in object:
+    if 'id' not in object:
         print('Error JSON dictionary has no id')
         return None
     if object['id'] != 'didierstevens.com':
         print('Error JSON dictionary has wrong id')
         return None
-    if not 'type' in object:
+    if 'type' not in object:
         print('Error JSON dictionary has no type')
         return None
     if object['type'] != 'content':
         print('Error JSON dictionary has wrong type')
         return None
-    if not 'fields' in object:
+    if 'fields' not in object:
         print('Error JSON dictionary has no fields')
         return None
-    if not 'name' in object['fields']:
+    if 'name' not in object['fields']:
         print('Error JSON dictionary has no name field')
         return None
-    if not 'content' in object['fields']:
+    if 'content' not in object['fields']:
         print('Error JSON dictionary has no content field')
         return None
-    if not 'items' in object:
+    if 'items' not in object:
         print('Error JSON dictionary has no items')
         return None
     for item in object['items']:
@@ -692,10 +674,7 @@ CUTTERM_FIND = 2
 CUTTERM_LENGTH = 3
 
 def Replace(string, dReplacements):
-    if string in dReplacements:
-        return dReplacements[string]
-    else:
-        return string
+    return dReplacements[string] if string in dReplacements else string
 
 def ParseInteger(argument):
     sign = 1
@@ -713,48 +692,63 @@ def ParseCutTerm(argument):
     if argument == '':
         return CUTTERM_NOTHING, None, ''
     oMatch = re.match(r'\-?0x([0-9a-f]+)', argument, re.I)
-    if oMatch == None:
+    if oMatch is None:
         oMatch = re.match(r'\-?(\d+)', argument)
     else:
-        value = int(oMatch.group(1), 16)
+        value = int(oMatch[1], 16)
         if argument.startswith('-'):
             value = -value
-        return CUTTERM_POSITION, value, argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return CUTTERM_POSITION, value, argument[len(oMatch[0]):]
+    if oMatch is None:
         oMatch = re.match(r'\[([0-9a-f]+)\](\d+)?([+-](?:0x[0-9a-f]+|\d+))?', argument, re.I)
     else:
-        value = int(oMatch.group(1))
+        value = int(oMatch[1])
         if argument.startswith('-'):
             value = -value
-        return CUTTERM_POSITION, value, argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return CUTTERM_POSITION, value, argument[len(oMatch[0]):]
+    if oMatch is None:
         oMatch = re.match(r"\[u?\'(.+?)\'\](\d+)?([+-](?:0x[0-9a-f]+|\d+))?", argument)
+    elif len(oMatch[1]) % 2 == 1:
+        raise Exception("Uneven length hexadecimal string")
     else:
-        if len(oMatch.group(1)) % 2 == 1:
-            raise Exception("Uneven length hexadecimal string")
-        else:
-            return CUTTERM_FIND, (binascii.a2b_hex(oMatch.group(1)), int(Replace(oMatch.group(2), {None: '1'})), ParseInteger(Replace(oMatch.group(3), {None: '0'}))), argument[len(oMatch.group(0)):]
-    if oMatch == None:
+        return (
+            CUTTERM_FIND,
+            (
+                binascii.a2b_hex(oMatch[1]),
+                int(Replace(oMatch[2], {None: '1'})),
+                ParseInteger(Replace(oMatch[3], {None: '0'})),
+            ),
+            argument[len(oMatch[0]) :],
+        )
+
+    if oMatch is None:
         return None, None, argument
-    else:
-        if argument.startswith("[u'"):
-            # convert ascii to unicode 16 byte sequence
-            searchtext = oMatch.group(1).decode('unicode_escape').encode('utf16')[2:]
-        else:
-            searchtext = oMatch.group(1)
-        return CUTTERM_FIND, (searchtext, int(Replace(oMatch.group(2), {None: '1'})), ParseInteger(Replace(oMatch.group(3), {None: '0'}))), argument[len(oMatch.group(0)):]
+    searchtext = (
+        oMatch[1].decode('unicode_escape').encode('utf16')[2:]
+        if argument.startswith("[u'")
+        else oMatch[1]
+    )
+
+    return (
+        CUTTERM_FIND,
+        (
+            searchtext,
+            int(Replace(oMatch[2], {None: '1'})),
+            ParseInteger(Replace(oMatch[3], {None: '0'})),
+        ),
+        argument[len(oMatch[0]) :],
+    )
 
 def ParseCutArgument(argument):
     type, value, remainder = ParseCutTerm(argument.strip())
     if type == CUTTERM_NOTHING:
         return CUTTERM_NOTHING, None, CUTTERM_NOTHING, None
-    elif type == None:
-        if remainder.startswith(':'):
-            typeLeft = CUTTERM_NOTHING
-            valueLeft = None
-            remainder = remainder[1:]
-        else:
+    elif type is None:
+        if not remainder.startswith(':'):
             return None, None, None, None
+        typeLeft = CUTTERM_NOTHING
+        valueLeft = None
+        remainder = remainder[1:]
     else:
         typeLeft = type
         valueLeft = value
@@ -769,7 +763,7 @@ def ParseCutArgument(argument):
     type, value, remainder = ParseCutTerm(remainder)
     if type == CUTTERM_POSITION and remainder == 'l':
         return typeLeft, valueLeft, CUTTERM_LENGTH, value
-    elif type == None or remainder != '':
+    elif type is None or remainder != '':
         return None, None, None, None
     elif type == CUTTERM_FIND and value[1] == 0:
         return None, None, None, None
@@ -791,7 +785,7 @@ def CutData(stream, cutArgument):
 
     typeLeft, valueLeft, typeRight, valueRight = ParseCutArgument(cutArgument)
 
-    if typeLeft == None:
+    if typeLeft is None:
         return [stream, None, None]
 
     if typeLeft == CUTTERM_NOTHING:
@@ -858,7 +852,7 @@ class cDump():
         countSpaces = 3 * (self.dumplinelength - len(asciiDump))
         if len(asciiDump) <= self.dumplinelength / 2:
             countSpaces += 1
-        return hexDump + '  ' + (' ' * countSpaces) + asciiDump
+        return f'{hexDump}  ' + ' ' * countSpaces + asciiDump
 
     def HexAsciiDump(self, rle=False):
         oDumpStream = self.cDumpStream(self.prefix)
@@ -916,10 +910,7 @@ class cDump():
 
     @staticmethod
     def C2IIP2(data):
-        if sys.version_info[0] > 2:
-            return data
-        else:
-            return ord(data)
+        return data if sys.version_info[0] > 2 else ord(data)
 #-ENDCODE cDump--------------------------------------------------------------------------------------
 
 def IfWIN32SetBinary(io):
@@ -936,7 +927,7 @@ def StdoutWriteChunked(data):
             sys.stdout.buffer.write(data)
     else:
         while data != '':
-            sys.stdout.write(data[0:10000])
+            sys.stdout.write(data[:10000])
             try:
                 sys.stdout.flush()
             except IOError:
@@ -957,7 +948,7 @@ class cVariables():
 
     def Instantiate(self, astring):
         for key, value in self.dVariables.items():
-            astring = astring.replace('%' + key + '%', value)
+            astring = astring.replace(f'%{key}%', value)
         return astring
 
 class cOutput():
@@ -976,20 +967,13 @@ class cOutput():
         self.oCsvWriter = None
         self.rootFilenames = {}
         self.binary = binary
-        if self.binary:
-            self.fileoptions = 'wb'
-        else:
-            self.fileoptions = 'w'
+        self.fileoptions = 'wb' if self.binary else 'w'
 
     def Open(self, binary=False):
         if self.fOut != None:
             return
 
-        if binary:
-            self.fileoptions = 'wb'
-        else:
-            self.fileoptions = 'w'
-
+        self.fileoptions = 'wb' if binary else 'w'
         if self.filenameOption:
             if self.ParseHash(self.filenameOption):
                 if not self.separateFiles and self.filename != '':

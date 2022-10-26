@@ -54,20 +54,19 @@ def Serialize(object, filename=PICKLE_FILE):
     return True
 
 def DeSerialize(filename=PICKLE_FILE):
-    if os.path.isfile(filename):
-        try:
-            fPickle = open(filename, 'rb')
-        except:
-            return None
-        try:
-            object = pickle.load(fPickle)
-        except:
-            return None
-        finally:
-            fPickle.close()
-        return object
-    else:
+    if not os.path.isfile(filename):
         return None
+    try:
+        fPickle = open(filename, 'rb')
+    except:
+        return None
+    try:
+        object = pickle.load(fPickle)
+    except:
+        return None
+    finally:
+        fPickle.close()
+    return object
 
 def MyCmp(a, b):
     return (a > b) - (a < b)
@@ -118,26 +117,19 @@ def PrintDictionary(dCount, options):
         if options.nocounts:
             line = 'Element'
         else:
-            line = 'Element%sCount' % options.outputseparator
+            line = f'Element{options.outputseparator}Count'
         if options.rank:
-            line = 'Rank%s%s' % (options.outputseparator, line)
+            line = f'Rank{options.outputseparator}{line}'
         if options.percentage:
             line = '%s%sCount%%' % (line, options.outputseparator)
         oOutput.Line(line)
 
     uniques = len(dCount.keys())
-    if options.descending:
-        ranknumber = 1
-    else:
-        ranknumber = uniques
+    ranknumber = 1 if options.descending else uniques
     if options.percentage or options.totals:
         sumValues = sum(dCount.values())
     listCount = dCount.items()
-    if options.keys:
-        index = 0
-    else:
-        index = 1
-        
+    index = 0 if options.keys else 1
     if bPython3:
         listCount = sorted(listCount, key=cmp_to_key(lambda x, y:MyCmp(x[index], y[index])), reverse=options.descending)
     else:
@@ -151,14 +143,13 @@ def PrintDictionary(dCount, options):
             line = '%d%s%s' % (ranknumber, options.outputseparator, line)
         if options.percentage:
             line = '%s%s%.2f%%' % (line, options.outputseparator, float(value) / sumValues * 100.0)
-        if options.ranktop == None and options.rankbottom == None:
+        if options.ranktop is None and options.rankbottom is None:
             oOutput.Line(line)
         elif options.ranktop != None:
             if ranknumber <= options.ranktop:
                 oOutput.Line(line)
-        elif options.rankbottom != None:
-            if uniques - ranknumber + 1 <= options.rankbottom:
-                oOutput.Line(line)
+        elif uniques - ranknumber + 1 <= options.rankbottom:
+            oOutput.Line(line)
         if options.descending:
             ranknumber += 1
         else:
@@ -176,30 +167,30 @@ def PrintSqlite3(connection, options):
         if options.nocounts:
             line = 'Element'
         else:
-            line = 'Element%sCount' % options.outputseparator
+            line = f'Element{options.outputseparator}Count'
         if options.rank:
-            line = 'Rank%s%s' % (options.outputseparator, line)
+            line = f'Rank{options.outputseparator}{line}'
         if options.percentage:
             line = '%s%sCount%%' % (line, options.outputseparator)
         oOutput.Line(line)
 
 #    for row in connection.execute('select * from count order by counter desc limit 10'):
 
-    if options.where != '':
-        where = ' where ' + options.where
-    else:
-        where = ''
-    uniques = connection.execute('select count(*) from count' + where).fetchone()[0]
-    if options.descending:
-        ranknumber = 1
-    else:
-        ranknumber = uniques
+    where = f' where {options.where}' if options.where != '' else ''
+    uniques = connection.execute(
+        f'select count(*) from count{where}'
+    ).fetchone()[0]
+
+    ranknumber = 1 if options.descending else uniques
     if options.percentage or options.totals:
-        sumValues = connection.execute('select sum(counter) from count' + where).fetchone()[0]
+        sumValues = connection.execute(
+            f'select sum(counter) from count{where}'
+        ).fetchone()[0]
+
     if options.keys:
-        selectStatement = 'select * from count' + where + ' order by key'
+        selectStatement = f'select * from count{where} order by key'
     else:
-        selectStatement = 'select * from count' + where + ' order by counter'
+        selectStatement = f'select * from count{where} order by counter'
     if options.descending:
         selectStatement += ' desc'
     for key, value in connection.execute(selectStatement):
@@ -211,14 +202,13 @@ def PrintSqlite3(connection, options):
             line = '%d%s%s' % (ranknumber, options.outputseparator, line)
         if options.percentage:
             line = '%s%s%.2f%%' % (line, options.outputseparator, float(value) / sumValues * 100.0)
-        if options.ranktop == None and options.rankbottom == None:
+        if options.ranktop is None and options.rankbottom is None:
             oOutput.Line(line)
         elif options.ranktop != None:
             if ranknumber <= options.ranktop:
                 oOutput.Line(line)
-        elif options.rankbottom != None:
-            if uniques - ranknumber + 1 <= options.rankbottom:
-                oOutput.Line(line)
+        elif uniques - ranknumber + 1 <= options.rankbottom:
+            oOutput.Line(line)
         if options.descending:
             ranknumber += 1
         else:
@@ -242,14 +232,13 @@ def File2Strings(filename):
         f.close()
 
 def ProcessAt(argument):
-    if argument.startswith('@'):
-        strings = File2Strings(argument[1:])
-        if strings == None:
-            raise Exception('Error reading %s' % argument)
-        else:
-            return strings
-    else:
+    if not argument.startswith('@'):
         return [argument]
+    strings = File2Strings(argument[1:])
+    if strings is None:
+        raise Exception(f'Error reading {argument}')
+    else:
+        return strings
 
 def ExpandFilenameArguments(filenames):
     return list(collections.OrderedDict.fromkeys(sum(map(glob.glob, sum(map(ProcessAt, filenames), [])), [])))
@@ -263,10 +252,7 @@ def CountDictionary(args, options):
     if args != ['']:
         args = ExpandFilenameArguments(args)
     for file in args:
-        if file == '':
-            fIn = sys.stdin
-        else:
-            fIn = open(file, 'r')
+        fIn = sys.stdin if file == '' else open(file, 'r')
         for line in fIn:
             line = line.strip('\n')
             if options.lowercase:
@@ -277,7 +263,7 @@ def CountDictionary(args, options):
                 elements = [line]
             for element in elements:
                 if options.ignore == '' or options.ignore != element:
-                    if not element in dCount:
+                    if element not in dCount:
                         dCount[element] = 1
                     else:
                         dCount[element] += 1
@@ -296,10 +282,7 @@ def CountAndPrintSqlite3(args, options):
     if args != ['']:
         args = ExpandFilenameArguments(args)
     for file in args:
-        if file == '':
-            fIn = sys.stdin
-        else:
-            fIn = open(file, 'r')
+        fIn = sys.stdin if file == '' else open(file, 'r')
         for line in fIn:
             line = line.strip('\n')
             if options.lowercase:
@@ -319,7 +302,7 @@ def CountAndPrintSqlite3(args, options):
 
     PrintSqlite3(connection, options)
 
-    if options.countingmethod != '' and options.countingmethod != ':memory:':
+    if options.countingmethod not in ['', ':memory:']:
         connection.commit()
     connection.close()
 
@@ -340,7 +323,13 @@ Source code put in the public domain by Didier Stevens, no Copyright
 Use at your own risk
 https://DidierStevens.com'''
 
-    oParser = optparse.OptionParser(usage='usage: %prog [options] [files ...]\n' + __description__ + moredesc, version='%prog ' + __version__)
+    oParser = optparse.OptionParser(
+        usage='usage: %prog [options] [files ...]\n'
+        + __description__
+        + moredesc,
+        version=f'%prog {__version__}',
+    )
+
     oParser.add_option('-d', '--descending', action='store_true', default=False, help='sort descending')
     oParser.add_option('-k', '--keys', action='store_true', default=False, help='sort on keys in stead of counts')
     oParser.add_option('-t', '--totals', action='store_true', default=False, help='print totals')

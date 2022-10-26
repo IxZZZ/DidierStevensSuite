@@ -33,10 +33,7 @@ def MostPrevalent(dChars):
             maximumChar = key
         elif value == maximumValue:
             maximumCount += 1
-    if maximumCount == 1:
-        return maximumChar
-    else:
-        return None
+    return maximumChar if maximumCount == 1 else None
 
 def DicAddGeneric(dicA, dicB):
     for key, value in dicB.items():
@@ -51,52 +48,49 @@ def DeFuzzer(filenameOut, filenames):
     countSequences = 0
     maxLengthSequence = 0
     minLengthSequence = 0
-    dFiles = {}
     dFuzzBytes = {}
-    for filename in filenames:
-        dFiles[filename] = open(filename, 'rb')
-    fOut = open(filenameOut, 'wb')
-    while True:
-        dChars = {}
-        for dFile in dFiles.values():
-            c = dFile.read(1)
-            if not c in dChars:
-                dChars[c] = 0
-            dChars[c] += 1
-        if '' in dChars: # we reached the end of at least one file
-            if countLengthSequence > 0:
-                countSequences += 1
-                maxLengthSequence = max(countLengthSequence, maxLengthSequence)
-                if minLengthSequence == 0:
-                    minLengthSequence = countLengthSequence
-                else:
-                    minLengthSequence = min(countLengthSequence, minLengthSequence)
-                countLengthSequence = 0
-            break
-        if len(dChars) == 1: # all characters identical
-            fOut.write(dChars.keys()[0])
-            if countLengthSequence > 0:
-                countSequences += 1
-                maxLengthSequence = max(countLengthSequence, maxLengthSequence)
-                if minLengthSequence == 0:
-                    minLengthSequence = countLengthSequence
-                else:
-                    minLengthSequence = min(countLengthSequence, minLengthSequence)
-                countLengthSequence = 0
-        else:
-            result = MostPrevalent(dChars)
-            if result == None:
-                print('Unable to defuzz, all bytes are different')
+    dFiles = {filename: open(filename, 'rb') for filename in filenames}
+    with open(filenameOut, 'wb') as fOut:
+        while True:
+            dChars = {}
+            for dFile in dFiles.values():
+                c = dFile.read(1)
+                if c not in dChars:
+                    dChars[c] = 0
+                dChars[c] += 1
+            if '' in dChars: # we reached the end of at least one file
+                if countLengthSequence > 0:
+                    countSequences += 1
+                    maxLengthSequence = max(countLengthSequence, maxLengthSequence)
+                    if minLengthSequence == 0:
+                        minLengthSequence = countLengthSequence
+                    else:
+                        minLengthSequence = min(countLengthSequence, minLengthSequence)
+                    countLengthSequence = 0
                 break
+            if len(dChars) == 1: # all characters identical
+                fOut.write(dChars.keys()[0])
+                if countLengthSequence > 0:
+                    countSequences += 1
+                    maxLengthSequence = max(countLengthSequence, maxLengthSequence)
+                    if minLengthSequence == 0:
+                        minLengthSequence = countLengthSequence
+                    else:
+                        minLengthSequence = min(countLengthSequence, minLengthSequence)
+                    countLengthSequence = 0
             else:
-                fOut.write(result)
-                countDifference += 1
-                countLengthSequence += 1
-                del dChars[result]
-                DicAddGeneric(dFuzzBytes, dict([(key, 1) for key, value in dChars.items()]))
-    for dFile in dFiles.values():
-        dFile.close()
-    fOut.close()
+                result = MostPrevalent(dChars)
+                if result is None:
+                    print('Unable to defuzz, all bytes are different')
+                    break
+                else:
+                    fOut.write(result)
+                    countDifference += 1
+                    countLengthSequence += 1
+                    del dChars[result]
+                    DicAddGeneric(dFuzzBytes, dict([(key, 1) for key in dChars]))
+        for dFile in dFiles.values():
+            dFile.close()
     print('Number of defuzzed bytes: %d' % countDifference)
     print('Number of defuzzed sequences: %d' % countSequences)
     print('Length of shortest defuzzed sequence: %d' % minLengthSequence)
@@ -107,7 +101,12 @@ def DeFuzzer(filenameOut, filenames):
     print(', '.join(['%s: %d' % (repr(key), dFuzzBytes[key]) for key in keys]))
 
 def Main():
-    oParser = optparse.OptionParser(usage='usage: %prog [options] mergedfile file-in-1 file-in-2 file-in-3 ...\n' + __description__, version='%prog ' + __version__)
+    oParser = optparse.OptionParser(
+        usage='usage: %prog [options] mergedfile file-in-1 file-in-2 file-in-3 ...\n'
+        + __description__,
+        version=f'%prog {__version__}',
+    )
+
     oParser.add_option('-o', '--option', action='store_true', default=False, help='option')
     (options, args) = oParser.parse_args()
 

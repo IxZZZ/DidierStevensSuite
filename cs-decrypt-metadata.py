@@ -113,7 +113,7 @@ def StdoutWriteChunked(data):
             sys.stdout.buffer.write(data)
     else:
         while data != '':
-            sys.stdout.write(data[0:10000])
+            sys.stdout.write(data[:10000])
             try:
                 sys.stdout.flush()
             except IOError:
@@ -134,7 +134,7 @@ class cVariables():
 
     def Instantiate(self, astring):
         for key, value in self.dVariables.items():
-            astring = astring.replace('%' + key + '%', value)
+            astring = astring.replace(f'%{key}%', value)
         return astring
 
 class cOutput():
@@ -153,10 +153,7 @@ class cOutput():
         self.oCsvWriter = None
         self.rootFilenames = {}
         self.binary = binary
-        if self.binary:
-            self.fileoptions = 'wb'
-        else:
-            self.fileoptions = 'w'
+        self.fileoptions = 'wb' if self.binary else 'w'
         self.dReplacements = {}
 
     def Replace(self, line):
@@ -168,11 +165,7 @@ class cOutput():
         if self.fOut != None:
             return
 
-        if binary:
-            self.fileoptions = 'wb'
-        else:
-            self.fileoptions = 'w'
-
+        self.fileoptions = 'wb' if binary else 'w'
         if self.filenameOption:
             if self.ParseHash(self.filenameOption):
                 if not self.separateFiles and self.filename != '':
@@ -189,22 +182,20 @@ class cOutput():
                 switches = self.filenameOption[1:position]
                 self.filename = self.filenameOption[position + 1:]
                 for switch in switches:
-                    if switch == 's':
-                        self.separateFiles = True
-                    elif switch == 'p':
-                        self.progress = True
-                    elif switch == 'c':
+                    if switch == 'l':
+                        continue
+                    if switch == 'c':
                         self.console = True
-                    elif switch == 'l':
-                        pass
                     elif switch == 'g':
-                        if self.filename != '':
-                            extra = self.filename + '-'
-                        else:
-                            extra = ''
-                        self.filename = '%s-%s%s.txt' % (os.path.splitext(os.path.basename(sys.argv[0]))[0], extra, self.FormatTime())
+                        extra = f'{self.filename}-' if self.filename != '' else ''
+                        self.filename = f'{os.path.splitext(os.path.basename(sys.argv[0]))[0]}-{extra}{self.FormatTime()}.txt'
+
                     elif switch == 'h':
                         self.head = True
+                    elif switch == 'p':
+                        self.progress = True
+                    elif switch == 's':
+                        self.separateFiles = True
                     elif switch == 't':
                         self.tail = True
                     else:
@@ -214,18 +205,18 @@ class cOutput():
 
     @staticmethod
     def FormatTime(epoch=None):
-        if epoch == None:
+        if epoch is None:
             epoch = time.time()
-        return '%04d%02d%02d-%02d%02d%02d' % time.localtime(epoch)[0:6]
+        return '%04d%02d%02d-%02d%02d%02d' % time.localtime(epoch)[:6]
 
     def RootUnique(self, root):
-        if not root in self.rootFilenames:
+        if root not in self.rootFilenames:
             self.rootFilenames[root] = None
             return root
         iter = 1
         while True:
             newroot = '%s_%04d' % (root, iter)
-            if not newroot in self.rootFilenames:
+            if newroot not in self.rootFilenames:
                 self.rootFilenames[newroot] = None
                 return newroot
             iter += 1
@@ -257,7 +248,7 @@ class cOutput():
             self.LineSub(line, eol)
 
     def LineTimestamped(self, line):
-        self.Line('%s: %s' % (self.FormatTime(), line))
+        self.Line(f'{self.FormatTime()}: {line}')
 
     def WriteBinary(self, data):
         self.Open(True)
@@ -269,7 +260,7 @@ class cOutput():
             StdoutWriteChunked(data)
 
     def CSVWriteRow(self, row):
-        if self.oCsvWriter == None:
+        if self.oCsvWriter is None:
             self.StringIOCSV = StringIO()
 #            self.oCsvWriter = csv.writer(self.fOut)
             self.oCsvWriter = csv.writer(self.StringIOCSV)
@@ -316,17 +307,14 @@ class cOutput():
             self.fOut = None
 
 def InstantiateCOutput(options):
-    filenameOption = None
-    if options.output != '':
-        filenameOption = options.output
+    filenameOption = options.output if options.output != '' else None
     return cOutput(filenameOption)
 
 def RSAEncrypt(key, data):
     oPublicKey = Crypto.PublicKey.RSA.importKey(binascii.a2b_hex(key).rstrip(b'\x00'))
     oRSAPublicKey = Crypto.Cipher.PKCS1_v1_5.new(oPublicKey)
     ciphertext = oRSAPublicKey.encrypt(data)
-    ciphertextBASE64 = binascii.b2a_base64(ciphertext).rstrip(b'\n')
-    return ciphertextBASE64
+    return binascii.b2a_base64(ciphertext).rstrip(b'\n')
 
 def RSADecrypt(key, data):
     oPrivateKey = Crypto.PublicKey.RSA.importKey(binascii.a2b_hex(key))
@@ -357,7 +345,7 @@ class cStruct(object):
         self.data = self.data[:length]
 
     def GetBytes(self, length=None, peek=False):
-        if length == None:
+        if length is None:
             length = len(self.data)
         result = self.data[:length]
         if not peek:
@@ -529,12 +517,12 @@ def DecodeMetadata(decrypted, oOutput):
     oOutput.Line('Datasize: %08x' % datasize)
     oStruct.Truncate(datasize)
     rawkey = oStruct.GetBytes(16)
-    oOutput.Line('Raw key:  %s' % binascii.b2a_hex(rawkey).decode())
+    oOutput.Line(f'Raw key:  {binascii.b2a_hex(rawkey).decode()}')
     sha256hex = hashlib.sha256(rawkey).hexdigest()
     aeskey = sha256hex[:32]
     hmackey = sha256hex[32:]
-    oOutput.Line(' aeskey:  %s' % aeskey)
-    oOutput.Line(' hmackey: %s' % hmackey)
+    oOutput.Line(f' aeskey:  {aeskey}')
+    oOutput.Line(f' hmackey: {hmackey}')
     charset, charset_oem = oStruct.Unpack('<HH')
     oOutput.Line('charset: %04x %s' % (charset, dCodepages.get(charset, '')))
     oOutput.Line('charset_oem: %04x %s' % (charset_oem, dCodepages.get(charset_oem, '')))
@@ -557,11 +545,11 @@ def DecodeMetadata(decrypted, oOutput):
             oOutput.Line('var5: %d' % var5)
             oOutput.Line('var6: %d' % var6)
             ipv4 = oStruct.GetBytes(4)
-            oOutput.Line('Internal IPv4: %s' % '.'.join([str(byte) for byte in ipv4[::-1]]))
+            oOutput.Line(f"Internal IPv4: {'.'.join([str(byte) for byte in ipv4[::-1]])}")
 
     remainder = oStruct.GetBytes()
     for field in remainder.split(b'\t'):
-        oOutput.Line('Field: %s' % field)
+        oOutput.Line(f'Field: {field}')
     oOutput.Line('')
 
 def GetScriptPath():
@@ -572,9 +560,7 @@ def GetScriptPath():
 
 def GetJSONData():
     filename = os.path.join(GetScriptPath(), '1768.json')
-    if not os.path.isfile(filename):
-        return {}
-    return json.load(open(filename, 'r'))
+    return json.load(open(filename, 'r')) if os.path.isfile(filename) else {}
 
 class cCSInstructions(object):
     CS_INSTRUCTION_TYPE_INPUT = 'Input'
@@ -638,11 +624,14 @@ class cCSInstructions(object):
             ord(b'O'): ord(b'E'),
             ord(b'P'): ord(b'F'),
         }
-        return binascii.a2b_hex(bytes([dTranslate[char] for char in netbios]))
+        return binascii.a2b_hex(bytes(dTranslate[char] for char in netbios))
 
     def GetInstructions(self):
         for result in self.instructions.split(';'):
-            match, remainder = __class__.StartsWithGetRemainder(result, '7:%s,' % self.instructionType)
+            match, remainder = __class__.StartsWithGetRemainder(
+                result, f'7:{self.instructionType},'
+            )
+
             if match:
                 if self.instructionType in [__class__.CS_INSTRUCTION_TYPE_OUTPUT, __class__.CS_INSTRUCTION_TYPE_METADATA]:
                     return ','.join(remainder.split(',')[::-1])
@@ -652,10 +641,7 @@ class cCSInstructions(object):
 
     def ProcessInstructions(self, rawdata):
         instructions = self.GetInstructions()
-        if instructions == '':
-            instructions = []
-        else:
-            instructions = [instruction for instruction in instructions.split(',')]
+        instructions = [] if instructions == '' else list(instructions.split(','))
         data = rawdata
         for instruction in instructions:
             instruction = instruction.split(':')
@@ -698,35 +684,37 @@ class cCSInstructions(object):
             elif opcode == __class__.CS_INSTRUCTION_STRREP:
                 data = data.replace(operands[0], operands[1])
             elif opcode == __class__.CS_INSTRUCTION_MASK:
-                xorkey = data[0:4]
+                xorkey = data[:4]
                 ciphertext = data[4:]
-                data = []
-                for iter, value in enumerate(ciphertext):
-                    data.append(value ^ xorkey[iter % 4])
+                data = [value ^ xorkey[iter % 4] for iter, value in enumerate(ciphertext)]
                 data = bytes(data)
-            elif opcode == __class__.CS_INSTRUCTION_CONST_HOST_HEADER:
-                pass
-            else:
+            elif opcode != __class__.CS_INSTRUCTION_CONST_HOST_HEADER:
                 raise Exception('Unknown instruction opcode: %d' % opcode)
         return data
 
 def DecryptMetadata(arg, options):
     oOutput = InstantiateCOutput(options)
 
-    oOutput.Line('Input: %s' % arg)
+    oOutput.Line(f'Input: {arg}')
     arg = cCSInstructions(cCSInstructions.CS_INSTRUCTION_TYPE_METADATA, options.transform).ProcessInstructions(arg.encode())
-    oOutput.Line('Encrypted metadata: %s' % binascii.b2a_hex(arg).decode())
+    oOutput.Line(f'Encrypted metadata: {binascii.b2a_hex(arg).decode()}')
 
     if options.private != '':
         decrypted = RSADecrypt(options.private, arg)
         if decrypted != None:
             DecodeMetadata(decrypted, oOutput)
     elif options.file != '':
-        if javaobj == None:
+        if javaobj is None:
             print('javaobj module required: pip install javaobj-py3')
             exit(-1)
         pobj = javaobj.load(open(options.file, 'rb'))
-        privateKey = binascii.b2a_hex(bytes([number & 0xFF for number in pobj.array.value.privateKey.encoded._data])).decode()
+        privateKey = binascii.b2a_hex(
+            bytes(
+                number & 0xFF
+                for number in pobj.array.value.privateKey.encoded._data
+            )
+        ).decode()
+
         decrypted = RSADecrypt(privateKey, arg)
         if decrypted != None:
             DecodeMetadata(decrypted, oOutput)
@@ -745,7 +733,13 @@ Source code put in the public domain by Didier Stevens, no Copyright
 Use at your own risk
 https://DidierStevens.com'''
 
-    oParser = optparse.OptionParser(usage='usage: %prog [options] encrypted_metadata\n' + __description__ + moredesc, version='%prog ' + __version__)
+    oParser = optparse.OptionParser(
+        usage='usage: %prog [options] encrypted_metadata\n'
+        + __description__
+        + moredesc,
+        version=f'%prog {__version__}',
+    )
+
     oParser.add_option('-m', '--man', action='store_true', default=False, help='Print manual')
     oParser.add_option('-o', '--output', type=str, default='', help='Output to file (# supported)')
     oParser.add_option('-p', '--private', default='', help='Private key (hexadecimal)')

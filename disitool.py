@@ -40,7 +40,10 @@ def Usage():
     """
     
     print('Usage: disitool command [options] file ...')
-    print('  disitool V%s %s, tool to manipulate digital signatures in PE files' % (__version__, __date__))
+    print(
+        f'  disitool V{__version__} {__date__}, tool to manipulate digital signatures in PE files'
+    )
+
     print('  commands:')
     print('  - delete signed-file unsigned-file')
     print('  - copy signed-source-file unsigned-file signed-file')
@@ -58,25 +61,23 @@ def DeleteDigitalSignature(SignedFile, UnsignedFile=None):
     """
     
     pe = pefile.PE(SignedFile)
-    
+
     address = pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']].VirtualAddress
     pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']].VirtualAddress = 0
     pe.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']].Size = 0
 
     if address != 0:
-        peUnsignedFile = pefile.PE(data=pe.write()[0:address])
+        peUnsignedFile = pefile.PE(data=pe.write()[:address])
     else:
         peUnsignedFile = pefile.PE(data=pe.write())
-    
+
     peUnsignedFile.OPTIONAL_HEADER.CheckSum = peUnsignedFile.generate_checksum()
-    
+
     new_file_data = peUnsignedFile.write()
 
     if UnsignedFile:
-        f = open(UnsignedFile, 'wb+')
-        f.write(new_file_data)
-        f.close()
-
+        with open(UnsignedFile, 'wb+') as f:
+            f.write(new_file_data)
     return new_file_data
 
 def CopyDigitalSignature(SignedSourceFile, UnsignedFile, SignedFile=None):
@@ -86,7 +87,7 @@ def CopyDigitalSignature(SignedSourceFile, UnsignedFile, SignedFile=None):
     """
     
     peSignedSource =  pefile.PE(SignedSourceFile)
-    
+
     address = peSignedSource.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']].VirtualAddress
     size = peSignedSource.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']].Size
 
@@ -97,7 +98,7 @@ def CopyDigitalSignature(SignedSourceFile, UnsignedFile, SignedFile=None):
     signature = peSignedSource.write()[address:]
 
     peUnsigned = DeleteDigitalSignature(UnsignedFile)
-    
+
     peSignedFileTemp = pefile.PE(data=peUnsigned + signature)
 
     peSignedFileTemp.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']].VirtualAddress = len(peUnsigned)
@@ -105,14 +106,12 @@ def CopyDigitalSignature(SignedSourceFile, UnsignedFile, SignedFile=None):
 
     peSignedFile = pefile.PE(data=peSignedFileTemp.write())
     peSignedFile.OPTIONAL_HEADER.CheckSum = peSignedFile.generate_checksum()
-    
-    new_file_data = peSignedFile.write()
-    
-    if SignedFile:
-        f = open(SignedFile, 'wb+')
-        f.write(new_file_data)
-        f.close()
 
+    new_file_data = peSignedFile.write()
+
+    if SignedFile:
+        with open(SignedFile, 'wb+') as f:
+            f.write(new_file_data)
     return new_file_data
 
 def ExtractDigitalSignature(SignedFile, SignatureFile=None):
@@ -129,14 +128,12 @@ def ExtractDigitalSignature(SignedFile, SignatureFile=None):
     if address == 0:
         print('Error: source file not signed')
         return
-    
-    signature = pe.write()[address+8:]
-    
-    if SignatureFile:
-        f = open(SignatureFile, 'wb+')
-        f.write(signature)
-        f.close()
 
+    signature = pe.write()[address+8:]
+
+    if SignatureFile:
+        with open(SignatureFile, 'wb+') as f:
+            f.write(signature)
     return signature
 
 def AddDigitalSignature(SignatureFile, UnsignedFile, SignedFile=None):
@@ -145,14 +142,12 @@ def AddDigitalSignature(SignatureFile, UnsignedFile, SignedFile=None):
        Returns the modified file as a PE file
     """
     
-    f = open(SignatureFile, 'rb')
-    signature = f.read()
-    f.close()
-    
+    with open(SignatureFile, 'rb') as f:
+        signature = f.read()
     size = len(signature) + 8
-    
+
     peUnsigned = DeleteDigitalSignature(UnsignedFile)
-    
+
     peSignedFileTemp = pefile.PE(data=peUnsigned + pack('<I', size) + b'\x00\x02\x02\x00' + signature)
 
     peSignedFileTemp.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']].VirtualAddress = len(peUnsigned)
@@ -162,12 +157,10 @@ def AddDigitalSignature(SignatureFile, UnsignedFile, SignedFile=None):
     peSignedFile.OPTIONAL_HEADER.CheckSum = peSignedFile.generate_checksum()
 
     new_file_data = peSignedFile.write()
-    
-    if SignedFile:
-        f = open(SignedFile, 'wb+')
-        f.write(new_file_data)
-        f.close()
 
+    if SignedFile:
+        with open(SignedFile, 'wb+') as f:
+            f.write(new_file_data)
     return new_file_data
 
 def InjectDataInSignedExecutable(SignedSourceFile, DataFile, SignedFile=None, paddata=False):
@@ -178,7 +171,7 @@ def InjectDataInSignedExecutable(SignedSourceFile, DataFile, SignedFile=None, pa
     """
     
     peSignedSource =  pefile.PE(SignedSourceFile)
-    
+
     address = peSignedSource.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']].VirtualAddress
     size = peSignedSource.OPTIONAL_HEADER.DATA_DIRECTORY[pefile.DIRECTORY_ENTRY['IMAGE_DIRECTORY_ENTRY_SECURITY']].Size
 
@@ -186,17 +179,15 @@ def InjectDataInSignedExecutable(SignedSourceFile, DataFile, SignedFile=None, pa
         print('Error: source file not signed')
         return
 
-    f = open(DataFile, 'rb')
-    DataToInject = f.read()
-    f.close()
-
+    with open(DataFile, 'rb') as f:
+        DataToInject = f.read()
     if len(DataToInject) % 8 != 0:
         if paddata:
             DataToInject = DataToInject + b'\x00' * (8 - (len(DataToInject) % 8))
             print('Info: padded the data to inject')
         else:
             print('Warning: the length of the data to inject is not a multiple of 8')
-    
+
     signature = peSignedSource.write()[address:]
 
     peUnsigned = peSignedSource.write()[:address]
@@ -207,21 +198,23 @@ def InjectDataInSignedExecutable(SignedSourceFile, DataFile, SignedFile=None, pa
 
     peSignedFile = pefile.PE(data=peSignedFileTemp.write())
     peSignedFile.OPTIONAL_HEADER.CheckSum = peSignedFile.generate_checksum()
-    
-    new_file_data = peSignedFile.write()
-    
-    if SignedFile:
-        f = open(SignedFile, 'wb+')
-        f.write(new_file_data)
-        f.close()
 
+    new_file_data = peSignedFile.write()
+
+    if SignedFile:
+        with open(SignedFile, 'wb+') as f:
+            f.write(new_file_data)
     return new_file_data
 
 def Main():
     """Parses the command line and executes the appropriate function
     """
     
-    oParser = optparse.OptionParser(usage='usage: %prog [options] command files...', version='%prog ' + __version__)
+    oParser = optparse.OptionParser(
+        usage='usage: %prog [options] command files...',
+        version=f'%prog {__version__}',
+    )
+
     oParser.add_option('-p', '--paddata', action='store_true', default=False, help='pad data to a multiple of 8 bytes')
     (options, args) = oParser.parse_args()
 

@@ -19,10 +19,7 @@ Todo:
 """
 
 def ParseNumber(number):
-    if number.startswith('0x'):
-        return int(number[2:], 16)
-    else:
-        return int(number)
+    return int(number[2:], 16) if number.startswith('0x') else int(number)
 
 class cADD1Decoder(cDecoderParent):
     name = 'ADD 1 byte decoder'
@@ -40,7 +37,7 @@ class cADD1Decoder(cDecoderParent):
 
     def Decode(self):
         if sys.version_info[0] > 2:
-            decoded = bytes([(c + self.keyADD1) & 0xFF for c in self.stream])
+            decoded = bytes((c + self.keyADD1) & 0xFF for c in self.stream)
         else:
             decoded = ''.join([chr((ord(c) + self.keyADD1) & 0xFF) for c in self.stream])
         self.name = 'ADD 1 byte key 0x%02X' % self.keyADD1
